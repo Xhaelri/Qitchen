@@ -1,0 +1,472 @@
+import Category from "../models/category.model.js";
+import Product from "../models/product.model.js";
+import Review from "../models/review.model.js";
+import {
+  destroyMultipleFromCloudinary,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
+export const productListing = async (req, res) => {
+  try {
+    const { categoryId } = req.params;
+    const { name, description, price, ingredients } = req.body;
+    if (!categoryId) {
+      res
+        .status(400)
+        .json({ success: false, message: "Category id is required" });
+    }
+
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      return res.status(404).json({
+        success: false,
+        message: "Category with the give id doesn't exist",
+      });
+    }
+    if ([name, description, price].some((field) => field?.trim() === "")) {
+      res
+        .status(400)
+        .json({ success: false, message: "All fields are required" });
+    }
+
+    let normalizedIngredients;
+    if (req.body.ingredients) {
+      try {
+        normalizedIngredients = JSON.parse(req.body.ingredients);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid ingredients JSON format",
+        });
+      }
+    }
+    const adminId = req.user?._id;
+
+    if (!adminId) {
+      res
+        .status(401)
+        .json({ success: false, message: "Admin is not authenticated" });
+    }
+
+    const productImagesPath = req.files.map((file) => file.path);
+
+    if (!productImagesPath || productImagesPath.length === 0) {
+      res
+        .status(400)
+        .json({ success: false, message: "At least one image is required" });
+    }
+    const uploadedImagesUrl = [];
+    const imagesPublicIdFromCloudinary = [];
+
+    for (const file of productImagesPath) {
+      const uploadProductImagesOnCloudinary = await uploadOnCloudinary(file);
+      uploadedImagesUrl.push(uploadProductImagesOnCloudinary.url);
+      imagesPublicIdFromCloudinary.push(
+        uploadProductImagesOnCloudinary.public_id
+      );
+    }
+
+    const listProduct = await Product.create({
+      name: name,
+      description: description,
+      price: price,
+      ingredients: normalizedIngredients,
+      images: uploadedImagesUrl,
+      imagesPublicId: imagesPublicIdFromCloudinary,
+      category: categoryId,
+    });
+
+    const product = await Product.findById(listProduct._id)
+      .populate("category")
+      .select(" name description price isAvailable images category");
+    if (!product) {
+      res
+        .status(400)
+        .json({ success: false, message: "Unable to list the product" });
+    }
+
+    return res
+      .status(201)
+      .json({ data: product, message: "Product listed successfully" });
+  } catch (error) {
+    console.log("Error in productListing function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const toggleProductAvailability = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    if (!productId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Product id is required" });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
+    }
+
+    product.isAvailable = !product.isAvailable;
+    await product.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Product availability set to ${product.isAvailable}`,
+      data: product,
+    });
+  } catch (error) {
+    console.log("Error in toggleProductAvailability", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getProductById = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!productId) {
+      res
+        .status(404)
+        .json({ success: false, message: "Product id is required" });
+    }
+    const product = await Product.findById(productId).select(
+      "-imagesPublicId -review"
+    );
+    if (!product) {
+      res
+        .status(404)
+        .json({ success: false, message: "Product doesn't exist" });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: product,
+      message: "Product Fetched successfully",
+    });
+  } catch (error) {
+    console.log("Error in getProductById function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const updateListedProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!productId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Product id is required" });
+    }
+
+    const allowedFields = ["name", "description", "price", "ingredients"];
+    const updateChanges = {};
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        updateChanges[field] = req.body[field];
+      }
+    });
+    if (Object.keys(updateChanges).length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "At least 1 field is required" });
+    }
+
+    const updateProduct = await Product.findByIdAndUpdate(
+      productId,
+      updateChanges,
+      {
+        new: true,
+      }
+    )
+      .populate("category")
+      .select("name description price isAvailable ingredients images category");
+    if (!updateProduct) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Unable to update the product" });
+    }
+
+    return res
+      .status(200)
+      .json({ data: updateProduct, message: "Product update successfully" });
+  } catch (error) {
+    console.log("Error in updateListedProduct function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const changeProductCategory = async (req, res) => {
+  try {
+    const { categoryId, productId } = req.params;
+    if (!categoryId || !productId) {
+      return res.status(400).json({
+        success: false,
+        message: "Category id and product id both are required",
+      });
+    }
+
+    const updateCategory = await Product.findByIdAndUpdate(
+      productId,
+      { category: categoryId },
+      { new: true }
+    )
+      .populate("category")
+      .select("name description price isAvailable ingredients images category");
+    if (!updateCategory) {
+      res
+        .status(400)
+        .json({ success: false, message: "Unable to update the category" });
+    }
+
+    return res.status(200).json({
+      data: updateCategory,
+      message: "Product category Updated Successfully",
+    });
+  } catch (error) {
+    console.log("Error in changeProductCategory function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const updateProductImages = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!productId) {
+      res
+        .status(400)
+        .json({ success: false, message: "Product Id is required" });
+    }
+
+    const product = await Product.findById(productId);
+    await destroyMultipleFromCloudinary(product.public_id);
+
+    const images = req.files.map((file) => file.path);
+    if (product.images.length + images.length > 11) {
+      return res.status(400).json({
+        success: false,
+        message: "Only 10 images are allowed for a single product",
+      });
+    }
+    const uploadedImagesUrl = [];
+    const uploadedImagesPublicId = [];
+    for (const filePath of images) {
+      const uploadFileImagesOnCloudinary = await uploadOnCloudinary(filePath);
+      uploadedImagesUrl.push(uploadFileImagesOnCloudinary.url);
+      uploadedImagesPublicId.push(uploadFileImagesOnCloudinary.public_id);
+    }
+    // Update product with new images:
+    product.images = uploadedImagesUrl;
+    product.imagesPublicId = uploadedImagesPublicId;
+    await product.save();
+
+    // if we want to add images without deleting the old ones and remove the save
+    // const updatedImages = await Product.findByIdAndUpdate(
+    //   productId,
+    //   {
+    //     $push: {
+    //       images: { $each: uploadedImagesUrl },
+    //       imagesPublicId: { $each: uploadedImagesPublicId },
+    //     },
+    //   },
+    //   {
+    //     new: true,
+    //   }
+    // );
+    // if (!updatedImages) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Unable to update images",
+    //   });
+    // }
+
+    const updatedImages = await Product.findById(productId);
+    if (!updatedImages) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to update images",
+      });
+    }
+
+    return res
+      .status(200)
+      .json({ data: updatedImages, message: "Images updated successfully" });
+  } catch (error) {
+    console.log("Error in updateProductImages function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    if (!productId) {
+      return res.status(400).json({
+        success: false,
+        message: "product id is required",
+      });
+    }
+    const product = await Product.findById(productId);
+    await destroyMultipleFromCloudinary(product.public_id);
+    await Review.deleteMany({ productId });
+
+    const deletedProduct = await Product.findByIdAndDelete(productId);
+    if (!deletedProduct) {
+      return res.status(400).json({
+        success: false,
+        message: "product is not deleted successfully or product not found",
+      });
+    }
+
+    return res.status(200).json({ message: "Product deleted Successfully" });
+  } catch (error) {
+    console.log("Error in deleteProduct function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const getProducts = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      name,
+      category,
+      minPrice,
+      maxPrice,
+      sortBy,
+    } = req.query;
+
+    if (page < 1 && limit < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Page and limit cannot be negative",
+      });
+    }
+
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+
+    if (name) filter.name = { $regex: name, $options: "i" };
+    if (category) filter.category = mongoose.Types.ObjectId(category);
+    if (minPrice) filter.price = { $gte: minPrice };
+    if (maxPrice) {
+      if (!filter.price) filter.price = {};
+      filter.price = { ...filter.price, $lte: maxPrice };
+    }
+
+    const sort = {};
+
+    if (sortBy) {
+      const [field, order] = sortBy.split(":");
+      if (
+        ["name", "price"].includes(field) &&
+        ["asc", "desc"].includes(order)
+      ) {
+        sort[field] = order === "desc" ? -1 : 1;
+      } else if (field === "rating") {
+        sort = { averageRating: order === "desc" ? -1 : 1 };
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid Sorting filter",
+        });
+      }
+    } else {
+      sort.name = 1;
+    }
+
+    const products = await Product.aggregate([
+      {
+        $match: filter,
+      },
+      {
+        $lookup: {
+          from: "reviews",
+          localField: "_id",
+          foreignField: "productId",
+          as: "reviews",
+        },
+      },
+      {
+        $addFields: {
+          averageRating: {
+            $ifNull: [{ $avg: "$reviews.rating" }, 0],
+          },
+        },
+      },
+      {
+        $sort: sort,
+      },
+      {
+        $skip: skip,
+      },
+      {
+        $limit: limit,
+      },
+      {
+        $project: {
+          name: 1,
+          description: 1,
+          price: 1,
+          ingredients: 1,
+          isAvailable: 1,
+          category: 1,
+          images: 1,
+          averageRating: 1,
+        },
+      },
+    ]);
+
+    if (products.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No products were found with the given filter",
+      });
+    }
+
+    const totalProducts = await Product.countDocuments(filter);
+
+    const totalPages = Math.ceil(totalProducts / limit);
+    const currentPage = Number(page);
+
+    const hasNextPage = currentPage < totalPages;
+    const hasPrevPage = currentPage > 1;
+
+    return res.status(200).json({
+      success: true,
+      data: products,
+      pagination: {
+        currentPage,
+        totalPages,
+        totalProducts,
+        limit,
+        hasNextPage,
+        hasPrevPage,
+      },
+    });
+  } catch (error) {
+    console.log("Error in getProducts function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const getReviewsForProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+
+    const reviews = await Review.find({ productId })
+      .populate("owner", "name email")
+      .sort({ createdAt: -1 });
+
+    return res
+      .status(200)
+      .json(new ApiResponse(200, reviews, "Reviews fetched successfully"));
+  } catch (error) {
+    console.log("Error in getReviewsForProduct function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
