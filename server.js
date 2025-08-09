@@ -57,5 +57,4 @@ async function startServer() {
   }
 }
 
-// Remove the top-level await and call the function instead
 startServer();
