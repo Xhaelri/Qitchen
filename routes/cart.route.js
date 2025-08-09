@@ -1,12 +1,11 @@
 import express from "express"
-import { addProductToCart,getCartByUserId, createCart, deleteCart, getCart, removeProductInstanceFromCart, removeAllSameProductFromCart, clearCart } from "../controllers/cart.controller.js";
+import { addProductToCart,getCartByUserId, deleteCart, getCart, removeProductInstanceFromCart, removeAllSameProductFromCart, clearCart, adjustProductQuantity } from "../controllers/cart.controller.js";
 import jwtVerify from "../middleware/auth.middleware.js"
 
 const router = express.Router()
 router.use(jwtVerify);
 
 
-router.post("/create-cart/:productId", createCart)
 
 router.get("/get-cart", getCart);
 
@@ -15,6 +14,8 @@ router.get("/get-cart/:userId", getCartByUserId);
 router.patch("/remove-all-same-products/:productId", removeAllSameProductFromCart)
 
 router.post("/add-product/:productId", addProductToCart)
+
+router.patch("/adjust-quantity/:productId", adjustProductQuantity)
 
 router.patch("/:productId", removeProductInstanceFromCart);
 

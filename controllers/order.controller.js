@@ -51,6 +51,7 @@ export const createOrderForCart = async (req, res) => {
       totalPrice: cart.totalPrice,
       totalQuantity: cart.totalQuantity,
       paymentStatus: "Pending",
+      orderStatusStatus: "Processing",
       address: addressId,
     });
 
@@ -97,7 +98,6 @@ export const createOrderForCart = async (req, res) => {
       session_url: session.url,
       orderId: order._id,
       order: populatedOrder,
-      sessionId: session.id,
       message: "Stripe session created. Redirect to payment.",
     });
   } catch (error) {
@@ -154,6 +154,7 @@ export const createOrderForProduct = async (req, res) => {
       totalPrice: product.price * quantity,
       totalQuantity: quantity,
       paymentStatus: "Pending",
+      orderStatus: "Processing",
       address: addressId,
     });
 
@@ -200,7 +201,6 @@ export const createOrderForProduct = async (req, res) => {
       session_url: session.url,
       orderId: order._id,
       order: populatedOrder,
-      sessionId: session.id,
       message: "Stripe session created. Redirect to payment.",
     });
   } catch (error) {
@@ -239,6 +239,7 @@ export const verifyPayment = async (req, res) => {
       // Update order status
       await Order.findByIdAndUpdate(orderId, {
         paymentStatus: "Completed",
+        orderStatus: "Paid",
       });
 
       // Clear the cart
@@ -254,6 +255,7 @@ export const verifyPayment = async (req, res) => {
       return res.status(200).json({
         success: true,
         paymentStatus: "completed",
+        orderStatus: "Paid",
         message: "Payment verified successfully",
         order: await Order.findById(orderId).populate("products.product"),
       });
@@ -328,7 +330,6 @@ export const getAllOrdersForUser = async (req, res) => {
       });
     }
 
-
     return res.status(200).json({
       success: true,
       data: orders,
@@ -363,5 +364,48 @@ export const getCurrentUserOrders = async (req, res) => {
   } catch (error) {
     console.log("Error in getOrderDetails:", error);
     return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateOrderStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: "Order id is required",
+      });
+    }
+
+    const allowedFields = ["orderStatus"];
+    const changes = {};
+
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) {
+        changes[field] = req.body[field];
+      }
+    });
+
+    if (Object.keys(changes).length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "orderStatus field is required" });
+    }
+    const updatedOrderStatus = await Order.findByIdAndUpdate(orderId, changes, {
+      new: true,
+    });
+
+    if (!updatedOrderStatus) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Unable to update the product" });
+    }
+    return res.status(200).json({
+      data: updatedOrderStatus,
+      message: "Order status updated successfully",
+    });
+  } catch (error) {
+    console.log("Error in updateOrderStatus function", error);
+    return res.status(404).json({ success: false, message: error.message });
   }
 };

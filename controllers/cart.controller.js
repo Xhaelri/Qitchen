@@ -1,84 +1,6 @@
 import Cart from "../models/cart.model.js";
 import Product from "../models/product.model.js";
 
-export const createCart = async (req, res) => {
-  try {
-    const userId = req.user?._id;
-    if (!userId) {
-      return res
-        .status(401)
-        .json({ success: false, message: "User is not authenticated" });
-    }
-
-    let cart = await Cart.findOne({ owner: userId });
-
-    const { productId } = req.params;
-    const { quantity = 1 } = req.body; // Get quantity from request body
-
-    if (productId) {
-      const product = await Product.findById(productId);
-      if (!product) {
-        return res.status(404).json({
-          success: false,
-          message: "Product not found with the given Product id",
-        });
-      }
-
-      // Validate quantity
-      if (!Number.isInteger(quantity) || quantity < 1) {
-        return res.status(400).json({
-          success: false,
-          message: "Quantity must be a positive integer",
-        });
-      }
-
-      if (!cart) {
-        cart = new Cart({
-          owner: userId,
-          products: [],
-          totalPrice: 0,
-          totalQuantity: 0,
-        });
-      }
-
-      const existingProduct = cart.products.find(
-        (p) => p.product.toString() === productId
-      );
-
-      if (existingProduct) {
-        existingProduct.quantity += quantity;
-      } else {
-        cart.products.push({ product: productId, quantity: quantity });
-      }
-
-      cart.totalQuantity += quantity;
-      cart.totalPrice += product.price * quantity;
-
-      await cart.save();
-      await cart.populate("products.product");
-
-      return res.status(201).json({
-        success: true,
-        data: cart,
-        message: `${quantity} item(s) added to cart successfully`,
-      });
-    }
-
-    // If product is not added and the endpoint hit for creating empty cart
-    if (!cart) {
-      cart = await Cart.create({ owner: userId });
-    }
-
-    return res.status(201).json({
-      success: true,
-      data: cart,
-      message: "Cart created successfully",
-    });
-  } catch (error) {
-    console.log("Error in createCart function", error);
-    return res.status(400).json({ success: false, message: error.message });
-  }
-};
 
 export const addProductToCart = async (req, res) => {
   try {
@@ -105,14 +27,6 @@ export const addProductToCart = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Product not found with the given Product id",
-      });
-    }
-
-    // Check if product is available
-    if (!product.isAvailable) {
-      return res.status(400).json({
-        success: false,
-        message: "Product is not available",
       });
     }
 
@@ -155,12 +69,12 @@ export const addProductToCart = async (req, res) => {
   }
 };
 
-// NEW: Update product quantity directly (for product cards)
-export const updateProductQuantity = async (req, res) => {
+// NEW: Increment/Decrement quantity function
+export const adjustProductQuantity = async (req, res) => {
   try {
     const userId = req.user?._id;
     const { productId } = req.params;
-    const { quantity } = req.body;
+    const { action } = req.body;
 
     if (!userId) {
       return res
@@ -168,11 +82,10 @@ export const updateProductQuantity = async (req, res) => {
         .json({ success: false, message: "User is not authenticated" });
     }
 
-    // Validate quantity
-    if (!Number.isInteger(quantity) || quantity < 0) {
+    if (!action || !['increase', 'decrease'].includes(action)) {
       return res.status(400).json({
         success: false,
-        message: "Quantity must be a non-negative integer",
+        message: "Action must be 'increase' or 'decrease'",
       });
     }
 
@@ -195,7 +108,7 @@ export const updateProductQuantity = async (req, res) => {
     const existingProduct = cart.products.find(
       (p) => p.product.toString() === productId
     );
-
+    
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
@@ -203,22 +116,29 @@ export const updateProductQuantity = async (req, res) => {
       });
     }
 
-    // Calculate difference for totals
-    const quantityDiff = quantity - existingProduct.quantity;
-    const priceDiff = product.price * quantityDiff;
+    let message = "";
 
-    if (quantity === 0) {
-      // Remove product from cart
-      cart.products = cart.products.filter(
-        (p) => p.product.toString() !== productId
-      );
-    } else {
-      // Update quantity
-      existingProduct.quantity = quantity;
+    if (action === 'increase') {
+      existingProduct.quantity += 1;
+      cart.totalQuantity += 1;
+      cart.totalPrice += product.price;
+      message = "Product quantity increased";
+    } else if (action === 'decrease') {
+      if (existingProduct.quantity === 1) {
+        // Use $pull to remove the product
+        await Cart.findByIdAndUpdate(cart._id, {
+          $pull: { products: { product: productId } }
+        });
+        cart.totalQuantity -= 1;
+        cart.totalPrice -= product.price;
+        message = "Product removed from cart";
+      } else {
+        existingProduct.quantity -= 1;
+        cart.totalQuantity -= 1;
+        cart.totalPrice -= product.price;
+        message = "Product quantity decreased";
+      }
     }
-
-    cart.totalQuantity += quantityDiff;
-    cart.totalPrice += priceDiff;
 
     // Ensure totals don't go negative
     cart.totalQuantity = Math.max(0, cart.totalQuantity);
@@ -230,13 +150,14 @@ export const updateProductQuantity = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: cart,
-      message: quantity === 0 ? "Product removed from cart" : "Product quantity updated successfully",
+      message: message,
     });
   } catch (error) {
-    console.log("Error in updateProductQuantity function", error);
-    return res.status(400).json({ success: false, message: error.message });
+    console.log("Error in adjustProductQuantity function", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
+
 
 export const removeProductInstanceFromCart = async (req, res) => {
   try {

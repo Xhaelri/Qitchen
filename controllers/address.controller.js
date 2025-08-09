@@ -76,7 +76,7 @@ export const updateAddress = async (req, res) => {
       street,
       buildingNumber,
       flatNumber,
-      position: {},
+      position,
     };
 
     const changes = {};
@@ -95,6 +95,7 @@ export const updateAddress = async (req, res) => {
     const address = await Address.findByIdAndUpdate(addressId, changes, {
       new: true,
     });
+    
     if (!address) {
       return res
         .status(404)

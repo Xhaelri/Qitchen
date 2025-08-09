@@ -2,6 +2,7 @@ import Category from "../models/category.model.js";
 import Product from "../models/product.model.js";
 import Review from "../models/review.model.js";
 import {
+  destroyFromCloudinary,
   destroyMultipleFromCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
@@ -191,7 +192,7 @@ export const updateListedProduct = async (req, res) => {
 
     return res
       .status(200)
-      .json({ data: updateProduct, message: "Product update successfully" });
+      .json({ data: updateProduct, message: "Product updated successfully" });
   } catch (error) {
     console.log("Error in updateListedProduct function", error);
     return res.status(404).json({ success: false, message: error.message });
@@ -231,20 +232,34 @@ export const changeProductCategory = async (req, res) => {
   }
 };
 
-export const updateProductImages = async (req, res) => {
+export const addProductImages = async (req, res) => {
   try {
     const { productId } = req.params;
     if (!productId) {
-      res
+      return res
         .status(400)
         .json({ success: false, message: "Product Id is required" });
     }
 
     const product = await Product.findById(productId);
-    await destroyMultipleFromCloudinary(product.public_id);
+    // await destroyMultipleFromCloudinary(product.public_id);
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product with the given id is not found",
+      });
+    }
+
+    if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No images provided. Please upload at least one image.",
+      });
+    }
 
     const images = req.files.map((file) => file.path);
-    if (product.images.length + images.length > 11) {
+
+    if (product.images.length + images.length > 10) {
       return res.status(400).json({
         success: false,
         message: "Only 10 images are allowed for a single product",
@@ -252,29 +267,40 @@ export const updateProductImages = async (req, res) => {
     }
     const uploadedImagesUrl = [];
     const uploadedImagesPublicId = [];
+
     for (const filePath of images) {
       const uploadFileImagesOnCloudinary = await uploadOnCloudinary(filePath);
       uploadedImagesUrl.push(uploadFileImagesOnCloudinary.url);
       uploadedImagesPublicId.push(uploadFileImagesOnCloudinary.public_id);
     }
     // Update product with new images:
-    product.images = uploadedImagesUrl;
-    product.imagesPublicId = uploadedImagesPublicId;
-    await product.save();
+    // product.images = uploadedImagesUrl;
+    // product.imagesPublicId = uploadedImagesPublicId;
+    // await product.save();
 
     // if we want to add images without deleting the old ones and remove the save
-    // const updatedImages = await Product.findByIdAndUpdate(
-    //   productId,
-    //   {
-    //     $push: {
-    //       images: { $each: uploadedImagesUrl },
-    //       imagesPublicId: { $each: uploadedImagesPublicId },
-    //     },
-    //   },
-    //   {
-    //     new: true,
-    //   }
-    // );
+    const updatedImages = await Product.findByIdAndUpdate(
+      productId,
+      {
+        $push: {
+          images: { $each: uploadedImagesUrl },
+          imagesPublicId: { $each: uploadedImagesPublicId },
+        },
+      },
+      {
+        new: true,
+      }
+    );
+    if (!updatedImages) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to add images",
+      });
+    }
+
+    // if we want to add images instead of the old ones entirely, return the product.save()
+
+    // const updatedImages = await Product.findById(productId);
     // if (!updatedImages) {
     //   return res.status(400).json({
     //     success: false,
@@ -282,20 +308,79 @@ export const updateProductImages = async (req, res) => {
     //   });
     // }
 
-    const updatedImages = await Product.findById(productId);
-    if (!updatedImages) {
-      return res.status(400).json({
+    return res
+      .status(200)
+      .json({ data: updatedImages, message: "Images added successfully" });
+  } catch (error) {
+    console.log("Error in addProductImages function", error);
+    return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const deleteSingleImage = async (req, res) => {
+  try {
+    const { productId, publicId } = req.params; // Get publicId from params
+    
+    if (!productId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Product Id is required" });
+    }
+
+    if (!publicId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Image public ID is required" });
+    }
+
+    const product = await Product.findById(productId);
+    if (!product) {
+      return res.status(404).json({
         success: false,
-        message: "Unable to update images",
+        message: "Product with the given id is not found",
       });
     }
 
-    return res
-      .status(200)
-      .json({ data: updatedImages, message: "Images updated successfully" });
+    // Find the index of the publicId in the array
+    const publicIdIndex = product.imagesPublicId.indexOf(publicId);
+    
+    if (publicIdIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        message: "Image with the given public ID not found in this product",
+      });
+    }
+
+    // Delete from Cloudinary
+    await destroyFromCloudinary(publicId);
+
+    // Remove the image and publicId from arrays using $pull
+    const updatedProduct = await Product.findByIdAndUpdate(
+      productId,
+      {
+        $pull: {
+          images: product.images[publicIdIndex], // Remove the corresponding image URL
+          imagesPublicId: publicId // Remove the publicId
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedProduct) {
+      return res.status(400).json({
+        success: false,
+        message: "Unable to delete image from database",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: updatedProduct,
+      message: "Image deleted successfully"
+    });
   } catch (error) {
-    console.log("Error in updateProductImages function", error);
-    return res.status(404).json({ success: false, message: error.message });
+    console.log("Error in deleteSingleImage function", error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
