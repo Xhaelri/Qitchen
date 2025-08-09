@@ -1,5 +1,5 @@
 import Category from "../models/category.model.js";
-
+import mongoose from "mongoose";
 export const createCategory = async (req, res) => {
   try {
     const { name, description } = req.body;
@@ -48,15 +48,20 @@ export const getAllCategories = async (req, res) => {
       page: parseInt(page, 10),
       limit: parseInt(limit, 10),
     };
-
-    const allCategories = await Category.aggregatePaginate(
-      [
-        {
-          $match: {},
+    const pipeline = [
+      {
+        $match: {},
+      },
+      {
+        $lookup: {
+          from: "products", // Make sure this matches your actual products collection name
+          localField: "_id",
+          foreignField: "category",
+          as: "products",
         },
-      ],
-      options
-    );
+      },
+    ];
+    const allCategories = await Category.aggregatePaginate(pipeline, options);
 
     if (allCategories.totalPages === 0) {
       return res.status(400).json({
@@ -78,7 +83,7 @@ export const getAllCategories = async (req, res) => {
   }
 };
 
-export const getCategoryById = async (req,res) => {
+export const getCategoryById = async (req, res) => {
   try {
     const { categoryId } = req.params;
     if (!categoryId) {
@@ -88,7 +93,19 @@ export const getCategoryById = async (req,res) => {
       });
     }
 
-    const category = await Category.findById(categoryId);
+    const category = await Category.aggregate([
+      {
+        $match: { _id: new mongoose.Types.ObjectId(categoryId) },
+      },
+      {
+        $lookup: {
+          from: "products", // Collection name (usually pluralized)
+          localField: "_id",
+          foreignField: "category",
+          as: "products",
+        },
+      },
+    ]);
     if (!category) {
       return res.status(404).json({
         success: false,
@@ -106,7 +123,7 @@ export const getCategoryById = async (req,res) => {
   }
 };
 
-export const updateCategory = async (req,res) => {
+export const updateCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
     if (!categoryId) {
@@ -152,7 +169,7 @@ export const updateCategory = async (req,res) => {
   }
 };
 
-export const deleteCategory = async (req,res) => {
+export const deleteCategory = async (req, res) => {
   try {
     const { categoryId } = req.params;
     if (!categoryId) {
