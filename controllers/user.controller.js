@@ -102,8 +102,8 @@ export const loginUser = async (req, res) => {
     );
     const options = {
       httpOnly: true,
-      //secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: process.env.NODE_ENV !== "production",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
@@ -156,8 +156,8 @@ export const logoutUser = async (req, res) => {
 
     const options = {
       httpOnly: true,
-      //secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: process.env.NODE_ENV !== "production",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
@@ -215,8 +215,8 @@ export const refreshAccessToken = async (req, res) => {
 
     const options = {
       httpOnly: true,
-      //secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: process.env.NODE_ENV !== "production",
+      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
