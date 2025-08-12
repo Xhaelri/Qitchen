@@ -4,6 +4,7 @@ import Review from "../models/review.model.js";
 import {
   destroyFromCloudinary,
   destroyMultipleFromCloudinary,
+  uploadMultipleOnCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 export const productListing = async (req, res) => {
@@ -48,43 +49,98 @@ export const productListing = async (req, res) => {
         .json({ success: false, message: "Admin is not authenticated" });
     }
 
-    const productImagesPath = req.files.map((file) => file.path);
+    // const productImagesPath = req.files.map((file) => file.path);
 
-    if (!productImagesPath || productImagesPath.length === 0) {
-      res
-        .status(400)
-        .json({ success: false, message: "At least one image is required" });
+    // if (!productImagesPath || productImagesPath.length === 0) {
+    //   res
+    //     .status(400)
+    //     .json({ success: false, message: "At least one image is required" });
+    // }
+    // const uploadedImagesUrl = [];
+    // const imagesPublicIdFromCloudinary = [];
+
+    // for (const file of productImagesPath) {
+    //   const uploadProductImagesOnCloudinary = await uploadOnCloudinary(file);
+    //   uploadedImagesUrl.push(uploadProductImagesOnCloudinary.url);
+    //   imagesPublicIdFromCloudinary.push(
+    //     uploadProductImagesOnCloudinary.public_id
+    //   );
+    // }
+
+    // const listProduct = await Product.create({
+    //   name: name,
+    //   description: description,
+    //   price: price,
+    //   ingredients: normalizedIngredients,
+    //   images: uploadedImagesUrl,
+    //   imagesPublicId: imagesPublicIdFromCloudinary,
+    //   category: categoryId,
+    // });
+
+    // const product = await Product.findById(listProduct._id)
+    //   .populate("category")
+    //   .select(" name description price isAvailable images category");
+    // if (!product) {
+    //   res
+    //     .status(400)
+    //     .json({ success: false, message: "Unable to list the product" });
+    // }
+
+    
+    let uploadedImages = [];
+    
+    try {
+      // Upload all images to Cloudinary directly from memory
+      uploadedImages = await uploadMultipleOnCloudinary(req.files, "products");
+      
+      const uploadedImagesUrl = uploadedImages.map(img => img.secure_url);
+      const imagesPublicIdFromCloudinary = uploadedImages.map(img => img.public_id);
+
+      const listProduct = await Product.create({
+        name: name,
+        description: description,
+        price: price,
+        ingredients: normalizedIngredients,
+        images: uploadedImagesUrl,
+        imagesPublicId: imagesPublicIdFromCloudinary,
+        category: categoryId,
+      });
+
+      const product = await Product.findById(listProduct._id)
+        .populate("category")
+        .select("name description price isAvailable images category");
+        
+      if (!product) {
+        // If product creation failed, cleanup uploaded images
+        await destroyMultipleFromCloudinary(imagesPublicIdFromCloudinary);
+        return res
+          .status(400)
+          .json({ success: false, message: "Unable to list the product" });
+      }
+
+      return res
+        .status(201)
+        .json({ 
+          success: true,
+          data: product, 
+          message: "Product listed successfully" 
+        });
+        
+    } catch (uploadError) {
+      console.error("Error uploading images:", uploadError);
+      
+      // Cleanup any uploaded images if there was an error
+      if (uploadedImages.length > 0) {
+        const publicIds = uploadedImages.map(img => img.public_id);
+        await destroyMultipleFromCloudinary(publicIds);
+      }
+      
+      return res.status(500).json({ 
+        success: false, 
+        message: "Error uploading images. Please try again." 
+      });
     }
-    const uploadedImagesUrl = [];
-    const imagesPublicIdFromCloudinary = [];
-
-    for (const file of productImagesPath) {
-      const uploadProductImagesOnCloudinary = await uploadOnCloudinary(file);
-      uploadedImagesUrl.push(uploadProductImagesOnCloudinary.url);
-      imagesPublicIdFromCloudinary.push(
-        uploadProductImagesOnCloudinary.public_id
-      );
-    }
-
-    const listProduct = await Product.create({
-      name: name,
-      description: description,
-      price: price,
-      ingredients: normalizedIngredients,
-      images: uploadedImagesUrl,
-      imagesPublicId: imagesPublicIdFromCloudinary,
-      category: categoryId,
-    });
-
-    const product = await Product.findById(listProduct._id)
-      .populate("category")
-      .select(" name description price isAvailable images category");
-    if (!product) {
-      res
-        .status(400)
-        .json({ success: false, message: "Unable to list the product" });
-    }
-
+    
     return res
       .status(201)
       .json({ data: product, message: "Product listed successfully" });
@@ -265,48 +321,101 @@ export const addProductImages = async (req, res) => {
         message: "Only 10 images are allowed for a single product",
       });
     }
-    const uploadedImagesUrl = [];
-    const uploadedImagesPublicId = [];
 
-    for (const filePath of images) {
-      const uploadFileImagesOnCloudinary = await uploadOnCloudinary(filePath);
-      uploadedImagesUrl.push(uploadFileImagesOnCloudinary.url);
-      uploadedImagesPublicId.push(uploadFileImagesOnCloudinary.public_id);
-    }
-    // Update product with new images:
-    // product.images = uploadedImagesUrl;
-    // product.imagesPublicId = uploadedImagesPublicId;
-    // await product.save();
+    let uploadedImages = [];
+     try {
+      // Upload all images to Cloudinary directly from memory buffers
+      uploadedImages = await uploadMultipleOnCloudinary(req.files, "products");
+      
+      const uploadedImagesUrl = uploadedImages.map(img => img.secure_url);
+      const uploadedImagesPublicId = uploadedImages.map(img => img.public_id);
 
-    // if we want to add images without deleting the old ones and remove the save
-    const updatedImages = await Product.findByIdAndUpdate(
-      productId,
-      {
-        $push: {
-          images: { $each: uploadedImagesUrl },
-          imagesPublicId: { $each: uploadedImagesPublicId },
+      // Update product with new images using $push to add to existing arrays
+      const updatedProduct = await Product.findByIdAndUpdate(
+        productId,
+        {
+          $push: {
+            images: { $each: uploadedImagesUrl },
+            imagesPublicId: { $each: uploadedImagesPublicId },
+          },
         },
-      },
-      {
-        new: true,
+        {
+          new: true,
+        }
+      );
+
+      if (!updatedProduct) {
+        // If database update failed, cleanup uploaded images
+        await destroyMultipleFromCloudinary(uploadedImagesPublicId);
+        return res.status(400).json({
+          success: false,
+          message: "Unable to add images to database",
+        });
       }
-    );
-    if (!updatedImages) {
-      return res.status(400).json({
+
+      return res.status(200).json({ 
+        success: true,
+        data: updatedProduct, 
+        message: "Images added successfully" 
+      });
+
+    } catch (uploadError) {
+      console.error("Error uploading images:", uploadError);
+      
+      // Cleanup any uploaded images if there was an error
+      if (uploadedImages.length > 0) {
+        const publicIds = uploadedImages.map(img => img.public_id);
+        await destroyMultipleFromCloudinary(publicIds);
+      }
+      
+      return res.status(500).json({
         success: false,
-        message: "Unable to add images",
+        message: "Error uploading images. Please try again.",
       });
     }
 
-    // if we want to add images instead of the old ones entirely, return the product.save()
+    // const uploadedImagesUrl = [];
+    // const uploadedImagesPublicId = [];
 
-    // const updatedImages = await Product.findById(productId);
+    // for (const filePath of images) {
+    //   const uploadFileImagesOnCloudinary = await uploadOnCloudinary(filePath);
+    //   uploadedImagesUrl.push(uploadFileImagesOnCloudinary.url);
+    //   uploadedImagesPublicId.push(uploadFileImagesOnCloudinary.public_id);
+    // }
+    // // Update product with new images:
+    // // product.images = uploadedImagesUrl;
+    // // product.imagesPublicId = uploadedImagesPublicId;
+    // // await product.save();
+
+    // // if we want to add images without deleting the old ones and remove the save
+    // const updatedImages = await Product.findByIdAndUpdate(
+    //   productId,
+    //   {
+    //     $push: {
+    //       images: { $each: uploadedImagesUrl },
+    //       imagesPublicId: { $each: uploadedImagesPublicId },
+    //     },
+    //   },
+    //   {
+    //     new: true,
+    //   }
+    // );
     // if (!updatedImages) {
     //   return res.status(400).json({
     //     success: false,
-    //     message: "Unable to update images",
+    //     message: "Unable to add images",
     //   });
     // }
+
+    // // if we want to add images instead of the old ones entirely, return the product.save()
+
+    // // const updatedImages = await Product.findById(productId);
+    // // if (!updatedImages) {
+    // //   return res.status(400).json({
+    // //     success: false,
+    // //     message: "Unable to update images",
+    // //   });
+    // // }
 
     return res
       .status(200)
@@ -394,18 +503,56 @@ export const deleteProduct = async (req, res) => {
       });
     }
     const product = await Product.findById(productId);
-    await destroyMultipleFromCloudinary(product.public_id);
-    await Review.deleteMany({ productId });
-
-    const deletedProduct = await Product.findByIdAndDelete(productId);
-    if (!deletedProduct) {
-      return res.status(400).json({
+    if (!product) {
+      return res.status(404).json({
         success: false,
-        message: "product is not deleted successfully or product not found",
+        message: "Product with the given id is not found",
       });
     }
+    
+    try {
+      // Delete all images from Cloudinary using the correct field name
+      if (product.imagesPublicId && product.imagesPublicId.length > 0) {
+        await destroyMultipleFromCloudinary(product.imagesPublicId);
+      }
 
-    return res.status(200).json({ message: "Product deleted Successfully" });
+      // Delete all reviews associated with this product
+      await Review.deleteMany({ productId });
+
+      // Delete the product from database
+      const deletedProduct = await Product.findByIdAndDelete(productId);
+      if (!deletedProduct) {
+        return res.status(400).json({
+          success: false,
+          message: "Product deletion failed or product not found",
+        });
+      }
+
+      return res.status(200).json({ 
+        success: true,
+        message: "Product and associated data deleted successfully" 
+      });
+
+    } catch (deleteError) {
+      console.error("Error during product deletion:", deleteError);
+      return res.status(500).json({
+        success: false,
+        message: "Error deleting product. Please try again.",
+      });
+    }
+    // const product = await Product.findById(productId);
+    // await destroyMultipleFromCloudinary(product.public_id);
+    // await Review.deleteMany({ productId });
+
+    // const deletedProduct = await Product.findByIdAndDelete(productId);
+    // if (!deletedProduct) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "product is not deleted successfully or product not found",
+    //   });
+    // }
+
+    // return res.status(200).json({ message: "Product deleted Successfully" });
   } catch (error) {
     console.log("Error in deleteProduct function", error);
     return res.status(404).json({ success: false, message: error.message });
