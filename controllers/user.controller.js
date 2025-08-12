@@ -102,8 +102,8 @@ export const loginUser = async (req, res) => {
     );
     const options = {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== "production",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
@@ -156,15 +156,15 @@ export const logoutUser = async (req, res) => {
 
     const options = {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== "production",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
     return res
       .status(200)
-      .clearCookie("accessToken", accessToken, options)
-      .clearCookie("refreshToken", refreshToken, options)
+      .clearCookie("accessToken", options)
+      .clearCookie("refreshToken", options)
       .json({
         success: true,
         message: "User logged out successfully!",
@@ -215,8 +215,8 @@ export const refreshAccessToken = async (req, res) => {
 
     const options = {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== "production",
-      sameSite: process.env.NODE_ENV === "production" ? "lax" : "none",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 
