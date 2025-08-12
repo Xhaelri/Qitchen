@@ -22,9 +22,8 @@ const port = process.env.PORT || 4000;
 // app.use("/webhook/stripe", express.raw({ type: "application/json" }));
 
 const corsConfig = {
-  origin: "*",
+  origin: "http://localhost:5173",
   credentials: true,
-  methods: ["GET", "PUT", "POST", "PATCH", "DELETE"],
 };
 
 // Middleware config
