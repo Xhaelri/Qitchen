@@ -11,18 +11,16 @@ import checkAdminRole from "../middleware/role.middleware.js";
 
 const router = express.Router();
 
-router.use(jwtVerify);
+// router.use(jwtVerify);
 
-router.post("/create-category", checkAdminRole, createCategory);
+router.post("/create-category", jwtVerify, checkAdminRole, createCategory);
 
 router.get("/all-categories", getAllCategories);
 
-router.get("/:categoryId", checkAdminRole, getCategoryById);
+router.get("/:categoryId", getCategoryById);
 
-router.patch("/:categoryId", checkAdminRole, updateCategory);
+router.patch("/:categoryId", jwtVerify, checkAdminRole, updateCategory);
 
-router.delete("/:categoryId", checkAdminRole, deleteCategory);
+router.delete("/:categoryId", jwtVerify, checkAdminRole, deleteCategory);
 
-export {
-    router
-}
+export { router };
