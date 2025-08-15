@@ -95,7 +95,7 @@ export const updateAddress = async (req, res) => {
     const address = await Address.findByIdAndUpdate(addressId, changes, {
       new: true,
     });
-    
+
     if (!address) {
       return res
         .status(404)
@@ -176,7 +176,7 @@ export const deleteAddress = async (req, res) => {
         .json({ success: false, message: "Address is required" });
     }
 
-    const address = await Address.findById(addressId);
+    const address = await Address.findByIdAndDelete(addressId);
     if (!address) {
       return res
         .status(404)
