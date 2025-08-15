@@ -24,9 +24,9 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, phoneNumber, role } = req.body;
+    const { name, email, passwordphoneNumber, role } = req.body;
     if (
-      [name, email, password, phoneNumber].some((field) => field?.trim() === "")
+      [name, email, passwordphoneNumber].some((field) => field?.trim() === "")
     ) {
       return res
         .status(400)
@@ -45,7 +45,7 @@ export const registerUser = async (req, res) => {
       name,
       email,
       password,
-      phoneNumber,
+    phoneNumber,
       role,
     });
 
@@ -98,7 +98,7 @@ export const loginUser = async (req, res) => {
     );
 
     const loggedInUser = await User.findById(user._id).select(
-      "-password -refreshToken -phoneNumber"
+      "-password -refreshTokenphoneNumber"
     );
     const options = {
       httpOnly: true,
@@ -299,7 +299,7 @@ export const updateAccountDetails = async (req, res) => {
     }
     const updatedUser = await User.findByIdAndUpdate(userId, changes, {
       new: true,
-    }).select(" -phoneNumber -password ");
+    }).select(" -password ");
     if (!updatedUser) {
       return res
         .status(400)
