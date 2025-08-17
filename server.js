@@ -10,6 +10,8 @@ import { router as reviewRouter } from "./routes/review.route.js";
 import { router as cartRouter } from "./routes/cart.route.js";
 import { router as addressRouter } from "./routes/address.route.js";
 import { router as orderRouter } from "./routes/order.route.js";
+import { router as tableRouter } from "./routes/table.route.js";
+import { router as reservationRouter } from "./routes/reservation.route.js";
 
 const app = express();
 const port = process.env.PORT || 4000;
@@ -42,6 +44,8 @@ app.use("/api/v1/review", reviewRouter);
 app.use("/api/v1/cart", cartRouter);
 app.use("/api/v1/address", addressRouter);
 app.use("/api/v1/order", orderRouter);
+app.use("/api/v1/table", tableRouter);
+app.use("/api/v1/reservation", reservationRouter);
 
 async function startServer() {
   try {

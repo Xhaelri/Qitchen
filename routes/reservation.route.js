@@ -1,0 +1,42 @@
+import express from "express";
+
+import jwtVerify from "../middleware/auth.middleware.js";
+
+import checkAdminRole from "../middleware/role.middleware.js";
+
+import {
+  createTable,
+  deleteTable,
+  getAllTables,
+  getTablebyId,
+  updateTable,
+} from "../controllers/table.controller.js";
+import {
+    cancelReservation,
+  createReservation,
+  deleteReservation,
+  getAllReservationsByDay,
+  getAllReservationsByReservationId,
+  getAllReservationsByUserId,
+  getAllReservationsForCurrentUser,
+  getAllSlotsForAllTables,
+  updateReservation,
+} from "../controllers/reservation.controller.js";
+
+const router = express.Router();
+
+router.use(jwtVerify);
+
+router.get("/get-all-slots-for-all-tables", getAllSlotsForAllTables);
+router.get("/get-all-reservation-day", getAllReservationsByDay);
+router.get("/get-reservation-by-id/:reservationId", getAllReservationsByReservationId);
+router.get("/get-all-reservation-for-user", getAllReservationsForCurrentUser);
+router.get("/get-all-reservation-by-userId/:userId", getAllReservationsByUserId);
+
+router.post("/create-reservation", createReservation);
+router.patch("/update-reservation/:reservationId", updateReservation);
+router.patch("/cancel-reservation/:reservationId", cancelReservation);
+router.delete("/delete-reservation/:reservationId", checkAdminRole, deleteReservation);
+
+
+export { router };

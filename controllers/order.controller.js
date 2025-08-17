@@ -25,7 +25,6 @@ export const createOrderForCart = async (req, res) => {
       });
     }
 
-    // Get cart with product details
     const cart = await Cart.findById(cartId).populate("products.product");
 
     if (!cart) {
@@ -41,7 +40,6 @@ export const createOrderForCart = async (req, res) => {
       });
     }
 
-    // Create Order in DB first
     const order = await Order.create({
       buyer: userId,
       products: cart.products.map((item) => ({
@@ -70,7 +68,6 @@ export const createOrderForCart = async (req, res) => {
       };
     });
 
-    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items,
@@ -84,7 +81,6 @@ export const createOrderForCart = async (req, res) => {
       },
     });
 
-    // Update order with Stripe session ID
     await Order.findByIdAndUpdate(order._id, {
       stripeSessionID: session.id,
     });
@@ -92,6 +88,8 @@ export const createOrderForCart = async (req, res) => {
     const populatedOrder = await Order.findById(order._id)
       .populate("products.product")
       .populate("address");
+
+    await Cart.findByIdAndDelete(cartId);
 
     return res.status(201).json({
       success: true,
@@ -125,7 +123,6 @@ export const createOrderForProduct = async (req, res) => {
       });
     }
 
-    // Validate quantity
     if (!Number.isInteger(quantity) || quantity < 1) {
       return res.status(400).json({
         success: false,
@@ -133,7 +130,6 @@ export const createOrderForProduct = async (req, res) => {
       });
     }
 
-    // Get cart with product details
     const product = await Product.findById(productId);
 
     if (!product) {
@@ -142,7 +138,6 @@ export const createOrderForProduct = async (req, res) => {
         .json({ success: false, message: "Product not found" });
     }
 
-    // Create Order in DB first - Note: products should be an array
     const order = await Order.create({
       buyer: userId,
       products: [
@@ -158,7 +153,6 @@ export const createOrderForProduct = async (req, res) => {
       address: addressId,
     });
 
-    // line_items must be an array for Stripe
     const line_items = [
       {
         price_data: {
@@ -173,7 +167,6 @@ export const createOrderForProduct = async (req, res) => {
       },
     ];
 
-    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items,
@@ -187,7 +180,6 @@ export const createOrderForProduct = async (req, res) => {
       },
     });
 
-    // Update order with Stripe session ID
     await Order.findByIdAndUpdate(order._id, {
       stripeSessionID: session.id,
     });
@@ -209,7 +201,6 @@ export const createOrderForProduct = async (req, res) => {
   }
 };
 
-// Manual payment verification for development (replaces webhook)
 export const verifyPayment = async (req, res) => {
   try {
     const { sessionId, orderId } = req.params;
@@ -221,10 +212,8 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    // Retrieve the session from Stripe
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
-    // Find the order in database
     const order = await Order.findById(orderId);
 
     if (!order) {
@@ -234,15 +223,12 @@ export const verifyPayment = async (req, res) => {
       });
     }
 
-    // Check if payment was successful
     if (session.payment_status === "paid") {
-      // Update order status
       await Order.findByIdAndUpdate(orderId, {
         paymentStatus: "Completed",
         orderStatus: "Paid",
       });
 
-      // Clear the cart
       const cartId = session.metadata.cartId;
       if (cartId) {
         await Cart.findByIdAndUpdate(cartId, {
@@ -260,7 +246,6 @@ export const verifyPayment = async (req, res) => {
         order: await Order.findById(orderId).populate("products.product"),
       });
     } else {
-      // Payment failed or pending
       await Order.findByIdAndUpdate(orderId, {
         paymentStatus:
           session.payment_status === "unpaid" ? "Failed" : "Pending",
@@ -278,7 +263,6 @@ export const verifyPayment = async (req, res) => {
   }
 };
 
-// Get order details
 export const getOrderDetails = async (req, res) => {
   try {
     const { orderId } = req.params;
@@ -287,20 +271,12 @@ export const getOrderDetails = async (req, res) => {
     const order = await Order.findById(orderId)
       .populate("products.product")
       .populate("address")
-      .populate("buyer", "name email");
+      .populate("buyer", "-refreshToken -password -__v");
 
     if (!order) {
       return res.status(404).json({
         success: false,
         message: "Order not found",
-      });
-    }
-
-    // Verify ownership
-    if (order.buyer._id.toString() !== userId.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized access to order",
       });
     }
 
