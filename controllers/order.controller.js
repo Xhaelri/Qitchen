@@ -238,7 +238,7 @@ export const verifyPayment = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        paymentStatus: "completed",
+        paymentStatus: "Completed",
         orderStatus: "Paid",
         message: "Payment verified successfully",
         order: await Order.findById(orderId).populate("products.product"),
