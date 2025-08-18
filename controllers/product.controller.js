@@ -639,7 +639,7 @@ export const getProducts = async (req, res) => {
       },
       {
         $lookup: {
-          from: "review", 
+          from: "reviews", 
           localField: "_id",
           foreignField: "productId",
           as: "reviews",

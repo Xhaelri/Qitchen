@@ -54,7 +54,7 @@ export const getAllCategories = async (req, res) => {
       },
       {
         $lookup: {
-          from: "product",
+          from: "products",
           localField: "_id",
           foreignField: "category",
           as: "products",
@@ -102,7 +102,7 @@ export const getCategoryById = async (req, res) => {
       },
       {
         $lookup: {
-          from: "product", 
+          from: "products", 
           localField: "_id",
           foreignField: "category",
           as: "products",
