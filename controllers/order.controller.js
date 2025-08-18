@@ -89,8 +89,6 @@ export const createOrderForCart = async (req, res) => {
       .populate("products.product")
       .populate("address");
 
-    await Cart.findByIdAndDelete(cartId);
-
     return res.status(201).json({
       success: true,
       session_url: session.url,
@@ -266,7 +264,6 @@ export const verifyPayment = async (req, res) => {
 export const getOrderDetails = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const userId = req.user?._id;
 
     const order = await Order.findById(orderId)
       .populate("products.product")
@@ -294,25 +291,48 @@ export const getOrderDetails = async (req, res) => {
 export const getAllOrdersForUser = async (req, res) => {
   try {
     const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Page and limit must be positive numbers",
+      });
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
     const orders = await Order.find({ buyer: userId })
       .populate("products.product")
-      .populate("address");
+      .populate("address")
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ createdAt: -1 });
 
-    if (!orders) {
+    const totalOrders = await Order.countDocuments({ buyer: userId });
+
+    if (!orders || orders.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Order not found",
+        message: "No orders found",
       });
     }
 
     return res.status(200).json({
       success: true,
       data: orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalOrders / limitNum),
+        totalOrders: totalOrders,
+        hasNextPage: skip + orders.length < totalOrders,
+        hasPrevPage: parseInt(page) > 1,
+      },
       message: "Orders fetched successfully",
     });
   } catch (error) {
-    console.log("Error in getOrderDetails:", error);
+    console.log("Error in getAllOrdersForUser:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -320,25 +340,48 @@ export const getAllOrdersForUser = async (req, res) => {
 export const getCurrentUserOrders = async (req, res) => {
   try {
     const userId = req.user?._id;
+    const { page = 1, limit = 10 } = req.query;
+
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Page and limit must be positive numbers",
+      });
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
     const orders = await Order.find({ buyer: userId })
       .populate("products.product")
-      .populate("address");
+      .populate("address")
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ createdAt: -1 });
 
-    if (!orders) {
+    const totalOrders = await Order.countDocuments({ buyer: userId });
+
+    if (!orders || orders.length === 0) {
       return res.status(404).json({
         success: false,
-        message: "Order not found",
+        message: "No orders found",
       });
     }
 
     return res.status(200).json({
       success: true,
       data: orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalOrders / limitNum),
+        totalOrders: totalOrders,
+        hasNextPage: skip + orders.length < totalOrders,
+        hasPrevPage: parseInt(page) > 1,
+      },
       message: "Orders fetched successfully",
     });
   } catch (error) {
-    console.log("Error in getOrderDetails:", error);
+    console.log("Error in getCurrentUserOrders:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

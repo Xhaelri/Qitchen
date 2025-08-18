@@ -37,10 +37,10 @@ export const createCategory = async (req, res) => {
 export const getAllCategories = async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
-    if (page < 1 && limit < 1) {
+    if (page < 1 || limit < 1) {
       return res.status(400).json({
         success: false,
-        message: "Page and limit cannot be negative",
+        message: "Page and limit must be positive numbers",
       });
     }
 
@@ -54,7 +54,7 @@ export const getAllCategories = async (req, res) => {
       },
       {
         $lookup: {
-          from: "products", // Make sure this matches your actual products collection name
+          from: "product",
           localField: "_id",
           foreignField: "category",
           as: "products",
@@ -63,18 +63,21 @@ export const getAllCategories = async (req, res) => {
     ];
     const allCategories = await Category.aggregatePaginate(pipeline, options);
 
-    if (allCategories.totalPages === 0) {
-      return res.status(400).json({
+    if (!allCategories.docs || allCategories.docs.length === 0) {
+      return res.status(404).json({
         success: false,
-        message: "No page found",
+        message: "No categories found",
       });
     }
 
     return res.status(200).json({
       success: true,
       data: allCategories.docs,
+      currentPage: allCategories.page,
       totalPages: allCategories.totalPages,
       totalDocuments: allCategories.totalDocs,
+      hasNextPage: allCategories.hasNextPage,
+      hasPrevPage: allCategories.hasPrevPage,
       message: "All categories fetched successfully",
     });
   } catch (error) {
@@ -95,26 +98,29 @@ export const getCategoryById = async (req, res) => {
 
     const category = await Category.aggregate([
       {
-        $match: { _id: new mongoose.Types.ObjectId(categoryId) },
+        $match: { _id: mongoose.Types.ObjectId.createFromHexString(categoryId) },
       },
       {
         $lookup: {
-          from: "products", // Collection name (usually pluralized)
+          from: "product", 
           localField: "_id",
           foreignField: "category",
           as: "products",
         },
       },
     ]);
-    if (!category) {
+    
+    // Fix: Check array length instead of truthy check
+    if (!category || category.length === 0) {
       return res.status(404).json({
         success: false,
         message: "No category found with the given id",
       });
     }
+    
     return res.status(200).json({
       success: true,
-      data: category,
+      data: category[0], 
       message: "Category fetched successfully",
     });
   } catch (error) {

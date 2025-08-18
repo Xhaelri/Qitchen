@@ -5,7 +5,6 @@ import {
   destroyFromCloudinary,
   destroyMultipleFromCloudinary,
   uploadMultipleOnCloudinary,
-  uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 export const productListing = async (req, res) => {
   try {
@@ -31,9 +30,9 @@ export const productListing = async (req, res) => {
     }
 
     let normalizedIngredients;
-    if (req.body.ingredients) {
+    if (ingredients) {
       try {
-        normalizedIngredients = JSON.parse(req.body.ingredients);
+        normalizedIngredients = JSON.parse(ingredients);
       } catch {
         return res.status(400).json({
           success: false,
@@ -108,7 +107,7 @@ export const productListing = async (req, res) => {
 
       const product = await Product.findById(listProduct._id)
         .populate("category")
-        .select("name description price isAvailable images category");
+        .select("name description price ingredients isAvailable images category");
         
       if (!product) {
         // If product creation failed, cleanup uploaded images
@@ -140,10 +139,6 @@ export const productListing = async (req, res) => {
         message: "Error uploading images. Please try again." 
       });
     }
-    
-    return res
-      .status(201)
-      .json({ data: product, message: "Product listed successfully" });
   } catch (error) {
     console.log("Error in productListing function", error);
     return res.status(404).json({ success: false, message: error.message });
@@ -571,26 +566,52 @@ export const getProducts = async (req, res) => {
       sortBy,
     } = req.query;
 
-    if (page < 1 && limit < 1) {
+    if (page < 1 || limit < 1) {
       return res.status(400).json({
         success: false,
-        message: "Page and limit cannot be negative",
+        message: "Page and limit must be positive numbers",
       });
     }
-
-    const skip = (page - 1) * limit;
 
     const filter = {};
 
     if (name) filter.name = { $regex: name, $options: "i" };
-    if (category) filter.category = mongoose.Types.ObjectId(category);
-    if (minPrice) filter.price = { $gte: minPrice };
+    
+    if (category) {
+      if (!mongoose.Types.ObjectId.isValid(category)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid category ID format",
+        });
+      }
+      filter.category = mongoose.Types.ObjectId.createFromHexString(category);
+    }
+    
+    if (minPrice) {
+      const min = Number(minPrice);
+      if (isNaN(min)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid minPrice value",
+        });
+      }
+      filter.price = { $gte: min };
+    }
+    
     if (maxPrice) {
+      const max = Number(maxPrice);
+      if (isNaN(max)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid maxPrice value",
+        });
+      }
       if (!filter.price) filter.price = {};
-      filter.price = { ...filter.price, $lte: maxPrice };
+      filter.price = { ...filter.price, $lte: max };
     }
 
-    const sort = {};
+    // Fix: Initialize sort as empty object, not let
+    let sort = {};
 
     if (sortBy) {
       const [field, order] = sortBy.split(":");
@@ -600,24 +621,25 @@ export const getProducts = async (req, res) => {
       ) {
         sort[field] = order === "desc" ? -1 : 1;
       } else if (field === "rating") {
-        sort = { averageRating: order === "desc" ? -1 : 1 };
+        // Fix: Don't reassign sort, use array notation
+        sort["averageRating"] = order === "desc" ? -1 : 1;
       } else {
         return res.status(400).json({
           success: false,
-          message: "Invalid Sorting filter",
+          message: "Invalid sorting filter. Use format: field:order (e.g., name:asc, price:desc, rating:asc)",
         });
       }
     } else {
       sort.name = 1;
     }
 
-    const products = await Product.aggregate([
+    const pipeline = [
       {
         $match: filter,
       },
       {
         $lookup: {
-          from: "reviews",
+          from: "review", 
           localField: "_id",
           foreignField: "productId",
           as: "reviews",
@@ -634,12 +656,6 @@ export const getProducts = async (req, res) => {
         $sort: sort,
       },
       {
-        $skip: skip,
-      },
-      {
-        $limit: limit,
-      },
-      {
         $project: {
           name: 1,
           description: 1,
@@ -651,35 +667,36 @@ export const getProducts = async (req, res) => {
           averageRating: 1,
         },
       },
-    ]);
+    ];
 
-    if (products.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No products were found with the given filter",
+    if (Product.aggregatePaginate) {
+      const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+      };
+
+      const products = await Product.aggregatePaginate(pipeline, options);
+
+      if (!products.docs || products.docs.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: "No products were found with the given filters",
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: products.docs,
+        pagination: {
+          currentPage: products.page,
+          totalPages: products.totalPages,
+          totalProducts: products.totalDocs,
+          limit: products.limit,
+          hasNextPage: products.hasNextPage,
+          hasPrevPage: products.hasPrevPage,
+        },
       });
     }
-
-    const totalProducts = await Product.countDocuments(filter);
-
-    const totalPages = Math.ceil(totalProducts / limit);
-    const currentPage = Number(page);
-
-    const hasNextPage = currentPage < totalPages;
-    const hasPrevPage = currentPage > 1;
-
-    return res.status(200).json({
-      success: true,
-      data: products,
-      pagination: {
-        currentPage,
-        totalPages,
-        totalProducts,
-        limit,
-        hasNextPage,
-        hasPrevPage,
-      },
-    });
   } catch (error) {
     console.log("Error in getProducts function", error);
     return res.status(404).json({ success: false, message: error.message });

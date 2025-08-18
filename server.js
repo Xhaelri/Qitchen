@@ -1,3 +1,7 @@
+import { applySecurity } from "./middleware/security.middleware.js";
+import { errorHandler, notFound } from "./middleware/errorHandler.middlware.js";
+
+
 import cookieParser from "cookie-parser";
 import express from "express";
 import cors from "cors";
@@ -14,24 +18,10 @@ import { router as tableRouter } from "./routes/table.route.js";
 import { router as reservationRouter } from "./routes/reservation.route.js";
 
 const app = express();
-const port = process.env.PORT || 4000;
 
-// Allow multiple origins
-// const allowedOrigins = ["http://localhost:5173"];
-//{ origin: allowedOrigins, credintials: true }
 
-// Important: Handle webhook route before JSON parsing middleware
-// app.use("/webhook/stripe", express.raw({ type: "application/json" }));
-
-const corsConfig = {
-  origin: "http://localhost:5173",
-  credentials: true,
-};
-
-// Middleware config
-app.use(express.json());
 app.use(cookieParser());
-app.use(cors(corsConfig));
+applySecurity(app);
 
 app.get("/", (req, res) => {
   res.send("API is working");
@@ -47,7 +37,13 @@ app.use("/api/v1/order", orderRouter);
 app.use("/api/v1/table", tableRouter);
 app.use("/api/v1/reservation", reservationRouter);
 
+
+app.use(notFound);
+app.use(errorHandler);
+
+
 async function startServer() {
+  const port = process.env.PORT || 4000;
   try {
     await connectDB();
 
