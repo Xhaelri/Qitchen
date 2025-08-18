@@ -98,7 +98,7 @@ export const loginUser = async (req, res) => {
     );
 
     const loggedInUser = await User.findById(user._id).select(
-      "-password -refreshTokenphoneNumber"
+      "-password -refreshToken"
     );
     const options = {
       httpOnly: true,
