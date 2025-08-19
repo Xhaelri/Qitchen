@@ -16,8 +16,12 @@ import { router as addressRouter } from "./routes/address.route.js";
 import { router as orderRouter } from "./routes/order.route.js";
 import { router as tableRouter } from "./routes/table.route.js";
 import { router as reservationRouter } from "./routes/reservation.route.js";
+import { router as srtipeRouter } from "./routes/stripe.route.js";
 
 const app = express();
+
+// stripe webhook route
+app.use('/api/v1/stripe', srtipeRouter);
 
 
 app.use(cookieParser());

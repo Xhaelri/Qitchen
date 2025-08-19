@@ -52,7 +52,7 @@ export const createOrderForCart = async (req, res) => {
       totalPrice: cart.totalPrice,
       totalQuantity: cart.totalQuantity,
       paymentStatus: "Pending",
-      orderStatusStatus: "Processing",
+      orderStatus: "Processing",
       address: addressId,
     });
 
@@ -204,67 +204,7 @@ export const createOrderForProduct = async (req, res) => {
   }
 };
 
-export const verifyPayment = async (req, res) => {
-  try {
-    const { sessionId, orderId } = req.params;
 
-    if (!sessionId || !orderId) {
-      return res.status(400).json({
-        success: false,
-        message: "Session ID and Order ID are required",
-      });
-    }
-
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    const order = await Order.findById(orderId);
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: "Order not found",
-      });
-    }
-
-    if (session.payment_status === "paid") {
-      await Order.findByIdAndUpdate(orderId, {
-        paymentStatus: "Completed",
-        orderStatus: "Paid",
-      });
-
-      const cartId = session.metadata.cartId;
-      if (cartId) {
-        await Cart.findByIdAndUpdate(cartId, {
-          products: [],
-          totalPrice: 0,
-          totalQuantity: 0,
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        paymentStatus: "Completed",
-        orderStatus: "Paid",
-        message: "Payment verified successfully",
-        order: await Order.findById(orderId).populate("products.product"),
-      });
-    } else {
-      await Order.findByIdAndUpdate(orderId, {
-        paymentStatus:
-          session.payment_status === "unpaid" ? "Failed" : "Pending",
-      });
-
-      return res.status(200).json({
-        success: false,
-        paymentStatus: session.payment_status,
-        message: `Payment ${session.payment_status}`,
-      });
-    }
-  } catch (error) {
-    console.log("Error in verifyPaymentManually:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
 
 export const getOrderDetails = async (req, res) => {
   try {
