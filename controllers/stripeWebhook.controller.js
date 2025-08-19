@@ -45,11 +45,7 @@ const fulfillCheckout = async (sessionId) => {
         };
         
         if (cartId) {
-          await Cart.findByIdAndUpdate(cartId, {
-            products: [],
-            totalPrice: 0,
-            totalQuantity: 0,
-          });
+          await Cart.findByIdAndDelete(cartId);
           console.log(`Cart ${cartId} cleared`);
         }
         
