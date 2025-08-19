@@ -123,7 +123,7 @@ export const webhook = async (request, response) => {
         if (failedOrderId) {
           await Order.findByIdAndUpdate(failedOrderId, {
             paymentStatus: 'Failed',
-            orderStatus: 'Payment Failed',
+            orderStatus: 'Processing',
           });
           console.log(`Order ${failedOrderId} marked as failed`);
         }
