@@ -42,7 +42,6 @@ const fulfillCheckout = async (sessionId) => {
           paymentStatus: 'Completed',
           orderStatus: 'Paid',
           stripeSessionID: sessionId,
-          fulfilledAt: new Date(),
         };
         
         if (cartId) {
@@ -58,7 +57,7 @@ const fulfillCheckout = async (sessionId) => {
       } else {
         updateData = {
           paymentStatus: 'Failed',
-          orderStatus: 'Payment Failed',
+          orderStatus: 'Processing',
           stripeSessionID: sessionId,
         };
         console.log(`Order ${orderId} payment failed`);
