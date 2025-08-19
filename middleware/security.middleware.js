@@ -9,7 +9,7 @@ import { xss } from "express-xss-sanitizer";
 
 export const applySecurity = (app) => {
   const corsConfig = {
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173","https://omar-mazen-qitchen.vercel.app"],
     credentials: true,
   };
   

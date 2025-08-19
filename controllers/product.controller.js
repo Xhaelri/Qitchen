@@ -584,6 +584,7 @@ export const getProducts = async (req, res) => {
           message: "Invalid category ID format",
         });
       }
+      //we can use new instead of createFromHexString
       filter.category = mongoose.Types.ObjectId.createFromHexString(category);
     }
     

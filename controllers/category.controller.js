@@ -98,18 +98,21 @@ export const getCategoryById = async (req, res) => {
 
     const category = await Category.aggregate([
       {
-        $match: { _id: mongoose.Types.ObjectId.createFromHexString(categoryId) },
+        //we can use new instead of createFromHexString
+        $match: {
+          _id: mongoose.Types.ObjectId.createFromHexString(categoryId),
+        },
       },
       {
         $lookup: {
-          from: "products", 
+          from: "products",
           localField: "_id",
           foreignField: "category",
           as: "products",
         },
       },
     ]);
-    
+
     // Fix: Check array length instead of truthy check
     if (!category || category.length === 0) {
       return res.status(404).json({
@@ -117,10 +120,10 @@ export const getCategoryById = async (req, res) => {
         message: "No category found with the given id",
       });
     }
-    
+
     return res.status(200).json({
       success: true,
-      data: category[0], 
+      data: category[0],
       message: "Category fetched successfully",
     });
   } catch (error) {
