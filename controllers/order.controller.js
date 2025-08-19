@@ -8,6 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const currency = "usd";
 
 export const createOrderForCart = async (req, res) => {
+  const FRONTEND_URL =
+    process.env.FRONT_PRODUCTION_URL || process.env.CLIENT_URL;
+
   try {
     const userId = req.user?._id;
     const { cartId, addressId } = req.params;
@@ -72,8 +75,8 @@ export const createOrderForCart = async (req, res) => {
       payment_method_types: ["card"],
       line_items,
       mode: "payment",
-      success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
-      cancel_url: `${process.env.CLIENT_URL}/payment/cancelled?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
+      success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
+      cancel_url: `${FRONTEND_URL}/payment/cancelled?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
       metadata: {
         orderId: order._id.toString(),
         userId: userId.toString(),
@@ -103,6 +106,8 @@ export const createOrderForCart = async (req, res) => {
 };
 
 export const createOrderForProduct = async (req, res) => {
+  const FRONTEND_URL =
+    process.env.FRONT_PRODUCTION_URL || process.env.CLIENT_URL;
   try {
     const userId = req.user?._id;
     const { productId, addressId } = req.params;
@@ -169,8 +174,8 @@ export const createOrderForProduct = async (req, res) => {
       payment_method_types: ["card"],
       line_items,
       mode: "payment",
-      success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
-      cancel_url: `${process.env.CLIENT_URL}/payment/cancelled?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
+      success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
+      cancel_url: `${FRONTEND_URL}/payment/cancelled?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
       metadata: {
         orderId: order._id.toString(),
         userId: userId.toString(),
