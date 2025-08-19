@@ -80,13 +80,26 @@ export const createOrderForCart = async (req, res) => {
       metadata: {
         orderId: order._id.toString(),
         userId: userId.toString(),
-        cartId: cartId,
+        cartId: cartId.toString(),
       },
     });
 
-    await Order.findByIdAndUpdate(order._id, {
-      stripeSessionID: session.id,
-    });
+    const updatedOrder = await Order.findByIdAndUpdate(
+      order._id,
+      {
+        $set: {
+          stripeSessionID: session.id,
+        },
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!updatedOrder) {
+      console.error("Failed to update order with Stripe session ID");
+      throw new Error("Failed to update order with Stripe session ID");
+    }
 
     const populatedOrder = await Order.findById(order._id)
       .populate("products.product")
@@ -203,8 +216,6 @@ export const createOrderForProduct = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-
-
 
 export const getOrderDetails = async (req, res) => {
   try {
