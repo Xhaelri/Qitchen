@@ -355,6 +355,72 @@ export const getCurrentUserOrders = async (req, res) => {
   }
 };
 
+export const getAllOrders = async (req, res) => {
+  try {
+    const { page = 1, limit = 10, orderStatus } = req.query;
+
+    if (page < 1 || limit < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Page and limit must be positive numbers",
+      });
+    }
+
+    const validOrderStatuses = ["Processing", "Paid", "Ready", "On the way", "Recieved", "Failed"];
+    if (orderStatus && !validOrderStatuses.includes(orderStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid order status. Valid statuses are: ${validOrderStatuses.join(", ")}`,
+      });
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    const filter = {};
+    if (orderStatus) {
+      filter.orderStatus = orderStatus;
+    }
+
+    const orders = await Order.find(filter)
+      .populate("products.product")
+      .populate("address")
+      .skip(skip)
+      .limit(limitNum)
+      .sort({ createdAt: -1 });
+
+    const totalOrders = await Order.countDocuments(filter);
+
+    if (!orders || orders.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: orderStatus 
+          ? `No orders found with status: ${orderStatus}`
+          : "No orders found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: orders,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalOrders / limitNum),
+        totalOrders: totalOrders,
+        hasNextPage: skip + orders.length < totalOrders,
+        hasPrevPage: parseInt(page) > 1,
+      },
+      filter: orderStatus ? { orderStatus } : null,
+      message: orderStatus 
+        ? `Orders with status '${orderStatus}' fetched successfully`
+        : "Orders fetched successfully",
+    });
+  } catch (error) {
+    console.log("Error in getAllOrders:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const updateOrderStatus = async (req, res) => {
   try {
     const { orderId } = req.params;
