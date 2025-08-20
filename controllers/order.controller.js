@@ -192,13 +192,26 @@ export const createOrderForProduct = async (req, res) => {
       metadata: {
         orderId: order._id.toString(),
         userId: userId.toString(),
-        productId: productId,
+        productId: productId.toString(),
       },
     });
 
-    await Order.findByIdAndUpdate(order._id, {
-      stripeSessionID: session.id,
-    });
+    const updatedOrder = await Order.findByIdAndUpdate(
+      order._id,
+      {
+        $set: {
+          stripeSessionID: session.id,
+        },
+      },
+      {
+        new: true,
+      }
+    );
+
+    if (!updatedOrder) {
+      console.error("Failed to update order with Stripe session ID");
+      throw new Error("Failed to update order with Stripe session ID");
+    }
 
     const populatedOrder = await Order.findById(order._id)
       .populate("products.product")
