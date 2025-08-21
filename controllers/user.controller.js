@@ -24,9 +24,9 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password,phoneNumber, role } = req.body;
+    const { name, email, password, phoneNumber, role } = req.body;
     if (
-      [name, email, password,phoneNumber].some((field) => field?.trim() === "")
+      [name, email, password, phoneNumber].some((field) => field?.trim() === "")
     ) {
       return res
         .status(400)

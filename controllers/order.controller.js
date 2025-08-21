@@ -383,7 +383,6 @@ export const getAllOrders = async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .populate("products.product")
       .populate("address")
       .skip(skip)
       .limit(limitNum)
