@@ -401,7 +401,7 @@ export const getAllOrders = async (req, res) => {
     const totalOrders = await Order.countDocuments(filter);
 
     if (!orders || orders.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         success: false,
         data:[],
         message: orderStatus
