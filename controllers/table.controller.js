@@ -113,21 +113,31 @@ export const getTablebyId = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Table id is required" });
     }
-    const table = await Table.findById(tableId);
+
+    const table = await Table.findById(tableId)
+      .populate({
+        path: "reservations",
+        select: "-__v", 
+        populate: {
+          path: "user",
+          select: "name email",
+        },
+      })
+
     if (!table) {
-      return res.status(400).json({
-        success: false,
-        message: "Table may not exist",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Table may not exist" });
     }
+
     return res.status(200).json({
       success: true,
       data: table,
       message: "Table fetched successfully!",
     });
   } catch (error) {
-    console.log("Error in getTablebyId function", error);
-    return res.status(400).json({
+    console.error("Error in getTablebyId function", error);
+    return res.status(500).json({
       success: false,
       message: "Table has not been fetched",
     });
@@ -136,23 +146,26 @@ export const getTablebyId = async (req, res) => {
 
 export const getAllTables = async (req, res) => {
   try {
-    const tables = await Table.find();
-    if (!tables) {
-      return res.status(400).json({
-        success: false,
-        message: "Tables may not exist",
-      });
-    }
+    const tables = await Table.find()
+      .populate({
+        path: "reservations",
+        select: "-__v ",
+        populate: {
+          path: "user",
+          select: "name email", 
+        },
+      })
+
     return res.status(200).json({
       success: true,
       data: tables,
       message: "Tables fetched successfully!",
     });
   } catch (error) {
-    console.log("Error in getAllTables function", error);
-    return res.status(400).json({
+    console.error("Error in getAllTables function", error);
+    return res.status(500).json({
       success: false,
-      message: "Tables has not been fetched",
+      message: "Tables have not been fetched",
     });
   }
 };
