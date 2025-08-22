@@ -366,11 +366,20 @@ export const getAllOrders = async (req, res) => {
       });
     }
 
-    const validOrderStatuses = ["Processing", "Paid", "Ready", "On the way", "Recieved", "Failed"];
+    const validOrderStatuses = [
+      "Processing",
+      "Paid",
+      "Ready",
+      "On the way",
+      "Recieved",
+      "Failed",
+    ];
     if (orderStatus && !validOrderStatuses.includes(orderStatus)) {
       return res.status(400).json({
         success: false,
-        message: `Invalid order status. Valid statuses are: ${validOrderStatuses.join(", ")}`,
+        message: `Invalid order status. Valid statuses are: ${validOrderStatuses.join(
+          ", "
+        )}`,
       });
     }
 
@@ -383,6 +392,7 @@ export const getAllOrders = async (req, res) => {
     }
 
     const orders = await Order.find(filter)
+      .populate("products.product","_id name quantity")
       .populate("address")
       .skip(skip)
       .limit(limitNum)
@@ -393,7 +403,7 @@ export const getAllOrders = async (req, res) => {
     if (!orders || orders.length === 0) {
       return res.status(404).json({
         success: false,
-        message: orderStatus 
+        message: orderStatus
           ? `No orders found with status: ${orderStatus}`
           : "No orders found",
       });
@@ -410,7 +420,7 @@ export const getAllOrders = async (req, res) => {
         hasPrevPage: parseInt(page) > 1,
       },
       filter: orderStatus ? { orderStatus } : null,
-      message: orderStatus 
+      message: orderStatus
         ? `Orders with status '${orderStatus}' fetched successfully`
         : "Orders fetched successfully",
     });
