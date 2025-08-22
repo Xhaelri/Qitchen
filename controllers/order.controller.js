@@ -403,6 +403,7 @@ export const getAllOrders = async (req, res) => {
     if (!orders || orders.length === 0) {
       return res.status(404).json({
         success: false,
+        data:[],
         message: orderStatus
           ? `No orders found with status: ${orderStatus}`
           : "No orders found",
