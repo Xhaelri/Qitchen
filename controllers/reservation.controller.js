@@ -3,12 +3,27 @@ import Table from "../models/table.model.js";
 
 const VALID_SLOTS = ["16:00", "18:00", "20:00", "22:00"];
 
+// Helper function to create local date without timezone conversion
+function createLocalDate(dateString, timeString = "00:00:00") {
+  const [year, month, day] = dateString.split("-");
+  const [hours, minutes, seconds = "00"] = timeString.split(":");
+  return new Date(year, month - 1, day, hours, minutes, seconds);
+}
+
+// Helper function to get start and end of day in local time
+function getLocalDayRange(dateString) {
+  const startOfDay = createLocalDate(dateString, "00:00:00");
+  const endOfDay = createLocalDate(dateString, "23:59:59");
+  endOfDay.setMilliseconds(999);
+  return { startOfDay, endOfDay };
+}
+
 function generateSlots(date, interval = 120) {
   const slots = [];
-  let start = new Date(`${date}T16:00:00Z`);
-  let end = new Date(`${date}T24:00:00Z`);
+  let start = createLocalDate(date, "16:00:00");
+  let end = createLocalDate(date, "24:00:00");
 
-  let current = start;
+  let current = new Date(start);
   while (current < end) {
     slots.push(new Date(current));
     current = new Date(current.getTime() + interval * 60 * 1000);
@@ -31,11 +46,12 @@ export const getAllSlotsForAllTables = async (req, res) => {
     }
 
     const allTables = await Table.find();
+    const { startOfDay, endOfDay } = getLocalDayRange(date);
 
     const currentReservations = await Reservation.find({
       reservationDate: {
-        $gte: new Date(`${date}T00:00:00Z`),
-        $lt: new Date(`${date}T23:59:59Z`),
+        $gte: startOfDay,
+        $lte: endOfDay,
       },
       status: { $in: ["pending", "confirmed"] },
     }).populate("table");
@@ -116,7 +132,7 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    const reservationDate = new Date(`${date}T${slot}:00Z`);
+    const reservationDate = createLocalDate(date, `${slot}:00`);
 
     const now = new Date();
     if (reservationDate < now) {
@@ -217,7 +233,7 @@ export const updateReservation = async (req, res) => {
         });
       }
 
-      const newReservationDate = new Date(`${date}T${slot}:00Z`);
+      const newReservationDate = createLocalDate(date, `${slot}:00`);
 
       const now = new Date();
       if (newReservationDate < now) {
@@ -355,10 +371,12 @@ export const getAllReservationsByDay = async (req, res) => {
       });
     }
 
+    const { startOfDay, endOfDay } = getLocalDayRange(date);
+
     const reservations = await Reservation.find({
       reservationDate: {
-        $gte: new Date(`${date}T00:00:00Z`),
-        $lt: new Date(`${date}T23:59:59Z`),
+        $gte: startOfDay,
+        $lte: endOfDay,
       },
       status: { $in: ["pending", "confirmed"] },
     }).populate([
@@ -366,10 +384,10 @@ export const getAllReservationsByDay = async (req, res) => {
       { path: "table", select: "-__v -createdAt -updatedAt" },
     ]);
 
-    if (!reservations) {
+    if (!reservations || reservations.length === 0) {
       return res
-        .status(400)
-        .json({ success: false, message: "No reservations yet!" });
+        .status(404)
+        .json({ success: false, message: "No reservations for this date!" });
     }
 
     return res.status(200).json({
@@ -385,6 +403,66 @@ export const getAllReservationsByDay = async (req, res) => {
     });
   }
 };
+
+export const getAllReservationsForTodayAllTables = async (req, res) => {
+  try {
+    const now = new Date();
+
+    // Get today's date in YYYY-MM-DD format in local time
+    const today =
+      now.getFullYear() +
+      "-" +
+      String(now.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(now.getDate()).padStart(2, "0");
+
+    const { startOfDay, endOfDay } = getLocalDayRange(today);
+
+    const allTables = await Table.find();
+
+    const reservations = await Reservation.find({
+      reservationDate: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    }).select("-__v").populate([
+      { path: "user", select: "-refreshToken -password -__v" },
+    ]);
+
+    if (!reservations || reservations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No reservations for today!",
+      });
+    }
+    const tablesWithReservations = allTables.map((table) => {
+      const tableReservations = reservations.filter(
+        (reservation) =>
+          reservation.table._id.toString() === table._id.toString()
+      );
+
+      return {
+        tableId: table._id,
+        tableNumber: table.number,
+        capacity: table.capacity,
+        isActive: table.isActive,
+        reservations: tableReservations,
+      };
+    });
+    return res.status(200).json({
+      success: true,
+      data: tablesWithReservations,
+      message: "Reservations for today fetched successfully!",
+    });
+  } catch (error) {
+    console.error("Error in getAllReservationsForTodayAllTables:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Couldn't fetch reservations",
+    });
+  }
+};
+
 export const getAllReservationsForCurrentUser = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -394,24 +472,18 @@ export const getAllReservationsForCurrentUser = async (req, res) => {
         .json({ success: false, message: "User is not authenticated" });
     }
 
-    const { date } = req.body;
-    if (!date) {
-      return res.status(400).json({
-        success: false,
-        message: "Date is required.",
-      });
-    }
-
     const reservations = await Reservation.find({
       user: userId,
     }).populate([
       { path: "user", select: "-refreshToken -password -__v" },
       { path: "table", select: "-__v -createdAt -updatedAt" },
     ]);
-    if (!reservations) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No reservations yet!" });
+
+    if (!reservations || reservations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No reservations found for this user!",
+      });
     }
 
     return res.status(200).json({
@@ -427,13 +499,14 @@ export const getAllReservationsForCurrentUser = async (req, res) => {
     });
   }
 };
+
 export const getAllReservationsByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
     if (!userId) {
       return res
-        .status(401)
-        .json({ success: false, message: "User is not authenticated" });
+        .status(400)
+        .json({ success: false, message: "User ID is required" });
     }
 
     const reservations = await Reservation.find({
@@ -443,11 +516,13 @@ export const getAllReservationsByUserId = async (req, res) => {
       { path: "table", select: "-__v -createdAt -updatedAt" },
     ]);
 
-    if (!reservations) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No reservations yet!" });
+    if (!reservations || reservations.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No reservations found for this user!",
+      });
     }
+
     return res.status(200).json({
       success: true,
       data: reservations,
@@ -461,6 +536,7 @@ export const getAllReservationsByUserId = async (req, res) => {
     });
   }
 };
+
 export const getAllReservationsByReservationId = async (req, res) => {
   try {
     const { reservationId } = req.params;
@@ -477,7 +553,7 @@ export const getAllReservationsByReservationId = async (req, res) => {
 
     if (!reservation) {
       return res
-        .status(400)
+        .status(404)
         .json({ success: false, message: "Reservation doesn't exist!" });
     }
 
@@ -509,19 +585,19 @@ export const deleteReservation = async (req, res) => {
     );
     if (!deletedReservation) {
       return res
-        .status(400)
+        .status(404)
         .json({ success: false, message: "Reservation doesn't exist!" });
     }
 
     return res.status(200).json({
       success: true,
-      message: `Reservations deleted successfully!`,
+      message: `Reservation deleted successfully!`,
     });
   } catch (error) {
     console.log("Error in deleteReservation function", error);
     return res.status(500).json({
       success: false,
-      message: "couldn't delete reservations",
+      message: "couldn't delete reservation",
     });
   }
 };

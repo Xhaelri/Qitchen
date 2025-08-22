@@ -19,6 +19,7 @@ import {
   getAllReservationsByReservationId,
   getAllReservationsByUserId,
   getAllReservationsForCurrentUser,
+  getAllReservationsForTodayAllTables,
   getAllSlotsForAllTables,
   updateReservation,
 } from "../controllers/reservation.controller.js";
@@ -32,6 +33,7 @@ router.get("/get-all-reservation-day", getAllReservationsByDay);
 router.get("/get-reservation-by-id/:reservationId", getAllReservationsByReservationId);
 router.get("/get-all-reservation-for-user", getAllReservationsForCurrentUser);
 router.get("/get-all-reservation-by-userId/:userId", getAllReservationsByUserId);
+router.get("/get-all-reservation-for-today", getAllReservationsForTodayAllTables);
 
 router.post("/create-reservation", createReservation);
 router.patch("/update-reservation/:reservationId", updateReservation);

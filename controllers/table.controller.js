@@ -169,3 +169,4 @@ export const getAllTables = async (req, res) => {
     });
   }
 };
+
