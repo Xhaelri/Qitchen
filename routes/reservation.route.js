@@ -28,8 +28,8 @@ const router = express.Router();
 
 router.use(jwtVerify);
 
-router.get("/get-all-slots-for-all-tables", getAllSlotsForAllTables);
-router.get("/get-all-reservation-day", getAllReservationsByDay);
+router.get("/get-all-slots-for-all-tables/:date", getAllSlotsForAllTables);
+router.get("/get-all-reservation-day/:date", getAllReservationsByDay);
 router.get("/get-reservation-by-id/:reservationId", getAllReservationsByReservationId);
 router.get("/get-all-reservation-for-user", getAllReservationsForCurrentUser);
 router.get("/get-all-reservation-by-userId/:userId", getAllReservationsByUserId);

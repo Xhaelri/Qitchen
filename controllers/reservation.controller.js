@@ -37,7 +37,7 @@ function isValidSlot(slot) {
 
 export const getAllSlotsForAllTables = async (req, res) => {
   try {
-    const { date } = req.body;
+    const { date } = req.params;
     if (!date) {
       return res.status(400).json({
         success: false,
@@ -363,7 +363,7 @@ export const cancelReservation = async (req, res) => {
 
 export const getAllReservationsByDay = async (req, res) => {
   try {
-    const { date } = req.body;
+    const { date } = req.params;
     if (!date) {
       return res.status(400).json({
         success: false,
