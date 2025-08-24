@@ -159,7 +159,7 @@ export const createReservation = async (req, res) => {
       user: userId,
       table: table._id,
       reservationDate,
-      status: "confirmed",
+      status: "Pending",
     });
 
     await newReservation.populate([
@@ -247,7 +247,7 @@ export const updateReservation = async (req, res) => {
     }
 
     if (status) {
-      if (!["pending", "confirmed", "cancelled"].includes(status)) {
+      if (!["Pending", "Confirmed", "Cancelled"].includes(status)) {
         return res.status(400).json({
           success: false,
           message: "Invalid status. Must be pending, confirmed, or cancelled",
@@ -261,7 +261,7 @@ export const updateReservation = async (req, res) => {
         _id: { $ne: reservationId },
         table: updates.table || reservation.table,
         reservationDate: updates.reservationDate || reservation.reservationDate,
-        status: { $in: ["pending", "confirmed"] },
+        status: { $in: ["Pending", "Confirmed"] },
       });
 
       if (conflictCheck) {
@@ -344,7 +344,7 @@ export const cancelReservation = async (req, res) => {
     //   });
     // }
 
-    reservation.status = "cancelled";
+    reservation.status = "Cancelled";
     await reservation.save();
 
     return res.status(200).json({
@@ -378,7 +378,7 @@ export const getAllReservationsByDay = async (req, res) => {
         $gte: startOfDay,
         $lte: endOfDay,
       },
-      status: { $in: ["pending", "confirmed"] },
+      status: { $in: ["Pending", "Confirmed"] },
     }).populate([
       { path: "user", select: "-refreshToken -password -__v" },
       { path: "table", select: "-__v -createdAt -updatedAt" },
