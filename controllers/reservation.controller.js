@@ -386,8 +386,12 @@ export const getAllReservationsByDay = async (req, res) => {
 
     if (!reservations || reservations.length === 0) {
       return res
-        .status(404)
-        .json({ success: false, message: "No reservations for this date!" });
+        .status(200)
+        .json({
+          success: true,
+          data: reservations,
+          message: "No reservations for this date!",
+        });
     }
 
     return res.status(200).json({
@@ -425,9 +429,9 @@ export const getAllReservationsForTodayAllTables = async (req, res) => {
         $gte: startOfDay,
         $lte: endOfDay,
       },
-    }).select("-__v").populate([
-      { path: "user", select: "-refreshToken -password -__v" },
-    ]);
+    })
+      .select("-__v")
+      .populate([{ path: "user", select: "-refreshToken -password -__v" }]);
 
     if (!reservations || reservations.length === 0) {
       return res.status(404).json({
