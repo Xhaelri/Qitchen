@@ -12,7 +12,6 @@ import {
   updateTable,
 } from "../controllers/table.controller.js";
 import {
-    cancelReservation,
   createReservation,
   deleteReservation,
   getAllReservationsByDay,
