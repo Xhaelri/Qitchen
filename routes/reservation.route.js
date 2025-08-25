@@ -5,13 +5,6 @@ import jwtVerify from "../middleware/auth.middleware.js";
 import checkAdminRole from "../middleware/role.middleware.js";
 
 import {
-  createTable,
-  deleteTable,
-  getAllTables,
-  getTablebyId,
-  updateTable,
-} from "../controllers/table.controller.js";
-import {
   createReservation,
   deleteReservation,
   getAllReservationsByDay,
