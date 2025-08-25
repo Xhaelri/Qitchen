@@ -261,7 +261,7 @@ export const updateReservation = async (req, res) => {
         _id: { $ne: reservationId },
         table: updates.table || reservation.table,
         reservationDate: updates.reservationDate || reservation.reservationDate,
-        status: { $in: ["Pending", "Confirmed"] },
+        status: { $in: ["Pending", "Confirmed", "Cancelled"] },
       });
 
       if (conflictCheck) {
@@ -295,71 +295,6 @@ export const updateReservation = async (req, res) => {
   }
 };
 
-export const cancelReservation = async (req, res) => {
-  try {
-    const { reservationId } = req.params;
-    const userId = req.user?._id;
-
-    if (!reservationId) {
-      return res.status(400).json({
-        success: false,
-        message: "Reservation id is required",
-      });
-    }
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "User is not authenticated",
-      });
-    }
-
-    const reservation = await Reservation.findById(reservationId).populate([
-      { path: "user", select: "-refreshToken -password -__v" },
-      { path: "table", select: "-__v -createdAt -updatedAt" },
-    ]);
-
-    if (!reservation) {
-      return res.status(404).json({
-        success: false,
-        message: "Reservation doesn't exist!",
-      });
-    }
-
-    if (reservation.status === "cancelled") {
-      return res.status(400).json({
-        success: false,
-        message: "Reservation is already cancelled",
-      });
-    }
-
-    // Optional: Check cancellation policy (uncomment if needed)
-    // const now = new Date();
-    // const reservationTime = new Date(reservation.reservationDate);
-    // const hoursUntilReservation = (reservationTime - now) / (1000 * 60 * 60);
-    // if (hoursUntilReservation < 2) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "Cannot cancel reservation less than 2 hours before the scheduled time"
-    //   });
-    // }
-
-    reservation.status = "Cancelled";
-    await reservation.save();
-
-    return res.status(200).json({
-      success: true,
-      data: reservation,
-      message: "Reservation cancelled successfully",
-    });
-  } catch (error) {
-    console.error("Error in cancelReservation function", error);
-    return res.status(500).json({
-      success: false,
-      message: "Couldn't cancel reservation",
-    });
-  }
-};
 
 export const getAllReservationsByDay = async (req, res) => {
   try {

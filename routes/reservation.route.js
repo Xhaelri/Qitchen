@@ -37,8 +37,8 @@ router.get("/get-all-reservation-for-today", getAllReservationsForTodayAllTables
 
 router.post("/create-reservation", createReservation);
 router.patch("/update-reservation/:reservationId", updateReservation);
-router.patch("/cancel-reservation/:reservationId", cancelReservation);
 router.delete("/delete-reservation/:reservationId", checkAdminRole, deleteReservation);
 
 
 export { router };
+
