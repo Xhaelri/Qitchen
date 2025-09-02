@@ -11,9 +11,9 @@ const tableSchema = new mongoose.Schema(
 
 // ✅ Virtual field for reservations
 tableSchema.virtual("reservations", {
-  ref: "Reservation", // model to populate from
-  localField: "_id", // table._id
-  foreignField: "table", // Reservation.table
+  ref: "Reservation",
+  localField: "_id", 
+  foreignField: "table", 
 });
 
 tableSchema.set("toObject", { virtuals: true });

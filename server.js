@@ -17,6 +17,7 @@ import { router as orderRouter } from "./routes/order.route.js";
 import { router as tableRouter } from "./routes/table.route.js";
 import { router as reservationRouter } from "./routes/reservation.route.js";
 import { router as srtipeRouter } from "./routes/stripe.route.js";
+import { router as homeRouter } from "./routes/home.route.js";
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.use("/api/v1/address", addressRouter);
 app.use("/api/v1/order", orderRouter);
 app.use("/api/v1/table", tableRouter);
 app.use("/api/v1/reservation", reservationRouter);
+app.use("/api/v1/home", homeRouter);
 
 
 app.use(notFound);
