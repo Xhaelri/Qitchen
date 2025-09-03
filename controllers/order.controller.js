@@ -392,7 +392,7 @@ export const getAllOrders = async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .populate("products.product","_id name quantity")
+      .populate("products.product", "_id name quantity")
       .populate("address")
       .skip(skip)
       .limit(limitNum)
@@ -403,7 +403,7 @@ export const getAllOrders = async (req, res) => {
     if (!orders || orders.length === 0) {
       return res.status(200).json({
         success: false,
-        data:[],
+        data: [],
         message: orderStatus
           ? `No orders found with status: ${orderStatus}`
           : "No orders found",
@@ -471,5 +471,70 @@ export const updateOrderStatus = async (req, res) => {
   } catch (error) {
     console.log("Error in updateOrderStatus function", error);
     return res.status(404).json({ success: false, message: error.message });
+  }
+};
+
+export const getOrdersByOrderStatus = async (req, res) => {
+  try {
+    let { orderStatus } = req.query;
+
+    if (!orderStatus) {
+      return res.status(404).json({
+        success: false,
+        message: "At least 1 order status required!",
+      });
+    }
+
+    if (typeof orderStatus === "string") {
+      // support comma-separated and single value
+      orderStatus = orderStatus.includes(",")
+        ? orderStatus.split(",")
+        : [orderStatus];
+    }
+
+    const validOrderStatuses = [
+      "Processing",
+      "Paid",
+      "Ready",
+      "On the way",
+      "Recieved",
+      "Failed",
+    ];
+
+    const invalidStatuses = orderStatus.filter(
+      (status) => !validOrderStatuses.includes(status)
+    );
+
+    if (invalidStatuses.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid statuses: ${invalidStatuses.join(", ")}. 
+                  Valid statuses are: ${validOrderStatuses.join(", ")}`,
+      });
+    }
+
+    const statusesData = await Promise.all(
+      orderStatus.map(async (status) => {
+        const orders = await Order.find({ orderStatus: status })
+          .populate("products.product", "_id name quantity")
+          .populate("address")
+          .sort({ createdAt: -1 });
+
+        return {
+          status,
+          orders,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      statuses: statusesData,
+    });
+  } catch (error) {
+    console.log("Error in getOrdersByOrderStatus:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: error.message });
   }
 };
