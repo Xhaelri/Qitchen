@@ -392,7 +392,7 @@ export const getAllOrders = async (req, res) => {
     }
 
     const orders = await Order.find(filter)
-      .populate("products.product", "_id name quantity")
+      .populate("products.product", "_id name price quantity")
       .populate("address")
       .skip(skip)
       .limit(limitNum)
