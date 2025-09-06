@@ -474,24 +474,36 @@ export const updateOrderStatus = async (req, res) => {
     return res.status(404).json({ success: false, message: error.message });
   }
 };
-
 export const getOrdersByOrderStatus = async (req, res) => {
   try {
-    let { orderStatus } = req.query;
+    const { page = 1, limit = 10, orderStatus } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+
+    if (pageNum < 1 || limitNum < 1) {
+      return res.status(400).json({
+        success: false,
+        message: "Page and limit must be positive numbers",
+      });
+    }
 
     if (!orderStatus) {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
         message: "At least 1 order status required!",
       });
     }
 
-    if (typeof orderStatus === "string") {
-      // support comma-separated and single value
-      orderStatus = orderStatus.includes(",")
-        ? orderStatus.split(",")
-        : [orderStatus];
-    }
+    // normalize orderStatus into array
+    const statuses =
+      typeof orderStatus === "string"
+        ? orderStatus.includes(",")
+          ? orderStatus.split(",").map((s) => s.trim())
+          : [orderStatus.trim()]
+        : Array.isArray(orderStatus)
+        ? orderStatus
+        : [];
 
     const validOrderStatuses = [
       "Processing",
@@ -502,7 +514,7 @@ export const getOrdersByOrderStatus = async (req, res) => {
       "Failed",
     ];
 
-    const invalidStatuses = orderStatus.filter(
+    const invalidStatuses = statuses.filter(
       (status) => !validOrderStatuses.includes(status)
     );
 
@@ -514,26 +526,39 @@ export const getOrdersByOrderStatus = async (req, res) => {
       });
     }
 
+    const skip = (pageNum - 1) * limitNum;
+
+    // filter for total count
+    const filter = { orderStatus: { $in: statuses } };
+    const totalOrders = await Order.countDocuments(filter);
+
     const statusesData = await Promise.all(
-      orderStatus.map(async (status) => {
+      statuses.map(async (status) => {
         const orders = await Order.find({ orderStatus: status })
-          .populate("products.product", "_id name quantity")
-          .populate("address")
+          .populate("products.product", "_id name price quantity")
+          .populate("address", "-__v")
+          .populate("buyer", "-password -__v -refreshToken")
+          .skip(skip)
+          .limit(limitNum)
           .sort({ createdAt: -1 });
 
-        return {
-          status,
-          orders,
-        };
+        return { status, orders };
       })
     );
 
     return res.status(200).json({
       success: true,
-      statuses: statusesData,
+      data: statusesData,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalOrders / limitNum),
+        totalOrders,
+        hasNextPage: pageNum * limitNum < totalOrders,
+        hasPrevPage: pageNum > 1,
+      },
     });
   } catch (error) {
-    console.log("Error in getOrdersByOrderStatus:", error);
+    console.error("Error in getOrdersByOrderStatus:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
