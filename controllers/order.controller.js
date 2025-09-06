@@ -371,7 +371,7 @@ export const getAllOrders = async (req, res) => {
       "Paid",
       "Ready",
       "On the way",
-      "Recieved",
+      "Received",
       "Failed",
     ];
     if (orderStatus && !validOrderStatuses.includes(orderStatus)) {
@@ -394,7 +394,7 @@ export const getAllOrders = async (req, res) => {
     const orders = await Order.find(filter)
       .populate("products.product", "_id name price quantity")
       .populate("address")
-      .populate("buyer", "-password -__v -refreshToken" )
+      .populate("buyer", "-password -__v -refreshToken")
       .skip(skip)
       .limit(limitNum)
       .sort({ createdAt: -1 });
@@ -498,7 +498,7 @@ export const getOrdersByOrderStatus = async (req, res) => {
       "Paid",
       "Ready",
       "On the way",
-      "Recieved",
+      "Received",
       "Failed",
     ];
 
@@ -534,8 +534,6 @@ export const getOrdersByOrderStatus = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in getOrdersByOrderStatus:", error);
-    return res
-      .status(500)
-      .json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

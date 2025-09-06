@@ -57,7 +57,7 @@ const orderSchema = new mongoose.Schema(
     },
     orderStatus: {
       type: String,
-      enum: ["Processing", "Paid", "Ready", "On the way", "Recieved","Failed"],
+      enum: ["Processing", "Paid", "Ready", "On the way", "Received", "Failed"],
       default: "Processing",
       required: true,
     },
