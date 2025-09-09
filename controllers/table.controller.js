@@ -45,12 +45,16 @@ if (isActive !== undefined) {
   changes.isActive = isActive;
 }
 
-    if (!number && !capacity && !isActive) {
-      return res.status(400).json({
-        success: false,
-        message: "At least 1 field is required for the update",
-      });
-    }
+    if (
+  number === undefined &&
+  capacity === undefined &&
+  isActive === undefined
+) {
+  return res.status(400).json({
+    success: false,
+    message: "At least 1 field is required for the update",
+  });
+}
 
     const updatedTable = await Table.findByIdAndUpdate(tableId, changes, {
       new: true,
