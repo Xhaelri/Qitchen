@@ -35,15 +35,15 @@ export const updateTable = async (req, res) => {
     }
     const { number, capacity, isActive } = req.body;
     const changes = {};
-    if (number) {
-      changes.number = number;
-    }
-    if (capacity) {
-      changes.capacity = capacity;
-    }
-    if (isActive) {
-      changes.isActive = isActive;
-    }
+if (number !== undefined) {
+  changes.number = number;
+}
+if (capacity !== undefined) {
+  changes.capacity = capacity;
+}
+if (isActive !== undefined) {
+  changes.isActive = isActive;
+}
 
     if (!number && !capacity && !isActive) {
       return res.status(400).json({
