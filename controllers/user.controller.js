@@ -1,5 +1,8 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
+import { transporter } from "../configs/nodemailer.js";
+import bcrypt from "bcrypt";
+import { EMAIL_VERIFY_TEMPLATE, PASSWORD_RESET_TEMPLATE } from "../configs/emailTemplates.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -25,49 +28,74 @@ const generateAccessAndRefreshToken = async (userId) => {
 export const registerUser = async (req, res) => {
   try {
     const { name, email, password, phoneNumber, role } = req.body;
-    if (
-      [name, email, password, phoneNumber].some((field) => field?.trim() === "")
-    ) {
-      return res
-        .status(400)
-        .json({ success: false, message: "All field is required" });
-    }
 
-    const checkUser = await User.findOne({ email: email });
-
-    if (checkUser) {
-      return res
-        .status(409)
-        .json({ success: false, message: "User already exists!" });
-    }
-
-    const user = await User.create({
-      name,
-      email,
-      password,
-    phoneNumber,
-      role,
-    });
-
-    const createdUser = await User.findById(user._id).select(
-      "-password -refreshToken "
-    );
-
-    if (!createdUser) {
+    // ✅ Validate all required fields
+    if ([name, email, password, phoneNumber].some((field) => !field?.trim())) {
       return res.status(400).json({
         success: false,
-        message: "Unable to create user",
+        message: "All fields are required",
       });
     }
 
+    // ✅ Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "User already exists with this email",
+      });
+    }
+
+    // ✅ Hash password
+
+    // ✅ Create user (unverified at first)
+    const user = new User({
+      name,
+      email,
+      password,
+      phoneNumber,
+      role,
+      isAccountVerified: false,
+    });
+
+    // ✅ Generate OTP and expiry
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    user.verifyOtp = otp;
+    user.verifyOtpExpireAt = Date.now() + 24 * 60 * 60 * 1000; // 24h expiry
+
+    await user.save();
+
+    // ✅ Send verification email
+    const mailOptions = {
+      from: process.env.STMP_EMAIL,
+      to: email,
+      subject: "Verify your Qitchen Account",
+      html: EMAIL_VERIFY_TEMPLATE.replace("{{otp}}", otp).replace(
+        "{{email}}",
+        email
+      ),
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // ✅ Return created user without sensitive fields
     return res.status(201).json({
       success: true,
-      message: "User registered Successfully!",
-      data: createdUser,
+      message: "User registered successfully. Verification OTP sent to email.",
+      data: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+      },
     });
   } catch (error) {
-    console.log("Error in register function", error);
-    return res.status(404).json({ success: false, message: error.message });
+    console.error("Error in registerUser:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong. Please try again later.",
+    });
   }
 };
 
@@ -76,23 +104,33 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) {
       return res
-        .status(404)
+        .status(400)
         .json({ success: false, message: "Email and password are required" });
     }
+    
     const user = await User.findOne({ email: email });
     if (!user) {
       return res
-        .status(404)
+        .status(401)
         .json({ success: false, message: "Invalid email or password" });
     }
 
     const isPassValid = await user.isPasswordCorrect(password);
-
     if (!isPassValid) {
       return res
-        .status(404)
+        .status(401)
         .json({ success: false, message: "Invalid email or password" });
     }
+
+    // ✅ CHECK IF ACCOUNT IS VERIFIED
+    if (!user.isAccountVerified) {
+      return res.status(403).json({
+        success: false,
+        message: "Please verify your account first. Check your email for verification OTP.",
+        userId: user._id, // Provide userId so frontend can resend OTP if needed
+      });
+    }
+
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
       user._id
     );
@@ -100,6 +138,7 @@ export const loginUser = async (req, res) => {
     const loggedInUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
+    
     const options = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -120,7 +159,178 @@ export const loginUser = async (req, res) => {
       });
   } catch (error) {
     console.log("Error in login function", error);
-    return res.status(404).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+// Send Verification OTP to the User's Email
+export const sendVerifyOtp = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (user.isAccountVerified) {
+      return res.json({ success: false, message: "Account already verified" });
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+    user.verifyOtp = otp;
+    user.verifyOtpExpireAt = Date.now() + 24 * 60 * 60 * 1000;
+
+    await user.save();
+
+    const mailOptions = {
+      from: process.env.STMP_EMAIL,
+      to: user.email,
+      subject: "Account Verification OTP",
+      // text: `Your OTP is ${otp}. Verify your account using this OTP.`,
+      html: EMAIL_VERIFY_TEMPLATE.replace("{{otp}}", otp).replace(
+        "{{email}}",
+        user.email
+      ),
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.json({ success: true, message: "Verification OTP sent to your email" });
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// Verify the Email using the OTP
+export const verifyEmail = async (req, res) => {
+  const { userId, otp } = req.body;
+
+  if (!userId || !otp) {
+    return res.json({
+      success: false,
+      message: "Missing details",
+    });
+  }
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    if (user.verifyOtp === "" || user.verifyOtp !== otp) {
+      return res.json({ success: false, message: "Invalid OTP" });
+    }
+
+    if (user.verifyOtpExpireAt < Date.now()) {
+      return res.json({ success: false, message: "OTP Expired" });
+    }
+
+    user.isAccountVerified = true;
+    user.verifyOtp = "";
+    user.verifyOtpExpireAt = 0;
+
+    await user.save();
+
+    return res.json({ success: true, message: "Email verified successfully" });
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// Check if user is authenticated
+export const isAuthenticated = async (req, res) => {
+  try {
+    return res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// Send Password Reset OTP
+export const sendResetOtp = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.json({
+      success: false,
+      message: "Email is required",
+    });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    const otp = String(Math.floor(100000 + Math.random() * 900000));
+
+    user.resetOtp = otp;
+    user.resetOtpExpireAt = Date.now() + 15 * 60 * 1000;
+
+    await user.save();
+
+    const mailOptions = {
+      from: process.env.STMP_EMAIL,
+      to: user.email,
+      subject: "Password Reset OTP",
+      // text: `Your OTP for resetting your password is ${otp}. Use this OTP to proceed with resetting your password.`,
+      html: PASSWORD_RESET_TEMPLATE.replace("{{otp}}", otp).replace(
+        "{{email}}",
+        user.email
+      ),
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    return res.json({ success: true, message: "OTP sent to your email" });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
+  }
+};
+
+// Reset User Password
+export const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  if (!email || !otp || !newPassword) {
+    return res.json({
+      success: false,
+      message: "Email, OTP, and New Password are required",
+    });
+  }
+
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.json({ success: false, message: "User Not Found" });
+    }
+
+    if (user.resetOtp === "" || user.resetOtp !== otp) {
+      return res.json({ success: false, message: "Invalid OTP" });
+    }
+
+    if (user.resetOtpExpireAt < Date.now()) {
+      return res.json({ success: false, message: "OTP Expired" });
+    }
+
+
+    user.password = newPassword;
+    user.resetOtp = "";
+    user.resetOtpExpireAt = 0;
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Password has been reset successfully",
+    });
+  } catch (error) {
+    return res.json({ success: false, message: error.message });
   }
 };
 
