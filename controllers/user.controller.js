@@ -2,7 +2,10 @@ import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 import { transporter } from "../configs/nodemailer.js";
 import bcrypt from "bcrypt";
-import { EMAIL_VERIFY_TEMPLATE, PASSWORD_RESET_TEMPLATE } from "../configs/emailTemplates.js";
+import {
+  EMAIL_VERIFY_TEMPLATE,
+  PASSWORD_RESET_TEMPLATE,
+} from "../configs/emailTemplates.js";
 
 const generateAccessAndRefreshToken = async (userId) => {
   try {
@@ -27,7 +30,14 @@ const generateAccessAndRefreshToken = async (userId) => {
 
 export const registerUser = async (req, res) => {
   try {
-    const { name, email, password, phoneNumber, role } = req.body;
+    const {
+      name,
+      email,
+      password,
+      phoneNumber,
+      role,
+      isAccountVerified = false,
+    } = req.body;
 
     // ✅ Validate all required fields
     if ([name, email, password, phoneNumber].some((field) => !field?.trim())) {
@@ -55,7 +65,7 @@ export const registerUser = async (req, res) => {
       password,
       phoneNumber,
       role,
-      isAccountVerified: false,
+      isAccountVerified,
     });
 
     // ✅ Generate OTP and expiry
@@ -107,7 +117,7 @@ export const loginUser = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Email and password are required" });
     }
-    
+
     const user = await User.findOne({ email: email });
     if (!user) {
       return res
@@ -122,15 +132,6 @@ export const loginUser = async (req, res) => {
         .json({ success: false, message: "Invalid email or password" });
     }
 
-    // ✅ CHECK IF ACCOUNT IS VERIFIED
-    if (!user.isAccountVerified) {
-      return res.status(403).json({
-        success: false,
-        message: "Please verify your account first. Check your email for verification OTP.",
-        userId: user._id, // Provide userId so frontend can resend OTP if needed
-      });
-    }
-
     const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
       user._id
     );
@@ -138,7 +139,7 @@ export const loginUser = async (req, res) => {
     const loggedInUser = await User.findById(user._id).select(
       "-password -refreshToken"
     );
-    
+
     const options = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -159,10 +160,11 @@ export const loginUser = async (req, res) => {
       });
   } catch (error) {
     console.log("Error in login function", error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
-
 
 // Send Verification OTP to the User's Email
 export const sendVerifyOtp = async (req, res) => {
@@ -317,7 +319,6 @@ export const resetPassword = async (req, res) => {
     if (user.resetOtpExpireAt < Date.now()) {
       return res.json({ success: false, message: "OTP Expired" });
     }
-
 
     user.password = newPassword;
     user.resetOtp = "";
