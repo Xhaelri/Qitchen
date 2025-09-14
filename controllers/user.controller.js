@@ -137,7 +137,7 @@ export const loginUser = async (req, res) => {
     );
 
     const loggedInUser = await User.findById(user._id).select(
-      "-password -refreshToken"
+      "-password -refreshToken -verifyOtp -resetOtp"
     );
 
     const options = {
@@ -181,6 +181,7 @@ export const sendVerifyOtp = async (req, res) => {
 
     user.verifyOtp = otp;
     user.verifyOtpExpireAt = Date.now() + 24 * 60 * 60 * 1000;
+    user.verifyOtpSendTime = Date.now()
 
     await user.save();
 
@@ -272,6 +273,7 @@ export const sendResetOtp = async (req, res) => {
 
     user.resetOtp = otp;
     user.resetOtpExpireAt = Date.now() + 15 * 60 * 1000;
+    user.resetOtpSendTime = Date.now()
 
     await user.save();
 
@@ -338,7 +340,7 @@ export const resetPassword = async (req, res) => {
 export const getCurrentUser = async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await User.findById(userId).select("-password -refreshToken");
+    const user = await User.findById(userId).select("-password -refreshToken -verifyOtp -resetOtp");
     return res.status(200).json({ success: true, user });
   } catch (error) {
     console.log("Error in Auth function", error);
@@ -406,7 +408,7 @@ export const refreshAccessToken = async (req, res) => {
         .json({ success: false, message: "Invalid Refresh token" });
     }
     const user = await User.findById(decode?._id).select(
-      " -phoneNumber -password "
+      " -phoneNumber -password -verifyOtp -resetOtp"
     );
     if (!user) {
       return res.status(404).json({
@@ -510,7 +512,7 @@ export const updateAccountDetails = async (req, res) => {
     }
     const updatedUser = await User.findByIdAndUpdate(userId, changes, {
       new: true,
-    }).select(" -password ");
+    }).select(" -password -verifyOtp -resetOtp");
     if (!updatedUser) {
       return res
         .status(400)
