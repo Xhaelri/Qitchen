@@ -229,6 +229,133 @@ export const createOrderForProduct = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+export const createOrderForMultipleProducts = async (req, res) => {
+  const FRONTEND_URL =
+    process.env.FRONT_PRODUCTION_URL || process.env.CLIENT_URL;
+
+  try {
+    const userId = req.user?._id;
+    const { addressId } = req.params;
+    const { items } = req.body; // Array of { productId, quantity }
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ success: false, message: "User not authenticated" });
+    }
+
+    if (!addressId) {
+      return res.status(400).json({
+        success: false,
+        message: "Address ID is required",
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Items must be a non-empty array of products",
+      });
+    }
+
+    // Validate products and calculate totals
+    let totalPrice = 0;
+    let totalQuantity = 0;
+    const productList = [];
+
+    for (const item of items) {
+      const { productId, quantity } = item;
+
+      if (!productId || !Number.isInteger(quantity) || quantity < 1) {
+        return res.status(400).json({
+          success: false,
+          message: "Each item must have a valid productId and positive quantity",
+        });
+      }
+
+      const product = await Product.findById(productId);
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          message: `Product not found: ${productId}`,
+        });
+      }
+
+      totalPrice += product.price * quantity;
+      totalQuantity += quantity;
+
+      productList.push({
+        product: productId,
+        quantity,
+      });
+    }
+
+    // Create order in DB
+    const order = await Order.create({
+      buyer: userId,
+      products: productList,
+      totalPrice,
+      totalQuantity,
+      paymentStatus: "Pending",
+      orderStatus: "Processing",
+      address: addressId,
+    });
+
+    // Prepare Stripe line items
+    const line_items = [];
+    const currency = "usd"; // or dynamic if you use multiple currencies
+
+    for (const item of items) {
+      const product = await Product.findById(item.productId);
+      line_items.push({
+        price_data: {
+          currency,
+          product_data: {
+            name: product.name,
+            images: product.images || [],
+          },
+          unit_amount: Math.round(product.price * 100),
+        },
+        quantity: item.quantity,
+      });
+    }
+
+    // Create Stripe Checkout Session
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items,
+      mode: "payment",
+      success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
+      cancel_url: `${FRONTEND_URL}/payment/cancelled?session_id={CHECKOUT_SESSION_ID}&order_id=${order._id}`,
+      metadata: {
+        orderId: order._id.toString(),
+        userId: userId.toString(),
+      },
+    });
+
+    // Save Stripe session ID to order
+    const updatedOrder = await Order.findByIdAndUpdate(
+      order._id,
+      { stripeSessionID: session.id },
+      { new: true }
+    );
+
+    const populatedOrder = await Order.findById(updatedOrder._id)
+      .populate("products.product")
+      .populate("address");
+
+    return res.status(201).json({
+      success: true,
+      session_url: session.url,
+      orderId: order._id,
+      order: populatedOrder,
+      message: "Stripe session created. Redirect to payment.",
+    });
+  } catch (error) {
+    console.error("Error in createOrderForMultipleProducts:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 export const getOrderDetails = async (req, res) => {
   try {
