@@ -69,6 +69,102 @@ export const addProductToCart = async (req, res) => {
   }
 };
 
+export const addMultipleProductsToCart = async (req, res) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User is not authenticated"
+      });
+    }
+
+    const { items } = req.body;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Items must be a non-empty array"
+      });
+    }
+
+    // Validate each item
+    for (const item of items) {
+      if (
+        !item.productId ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity < 1
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Each item must include valid productId and quantity"
+        });
+      }
+    }
+
+    // Fetch all product IDs
+    const productIds = items.map((i) => i.productId);
+    const productsFromDB = await Product.find({ _id: { $in: productIds } });
+
+    if (productsFromDB.length !== productIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: "One or more product IDs are invalid"
+      });
+    }
+
+    let cart = await Cart.findOne({ owner: userId });
+
+    if (!cart) {
+      cart = new Cart({
+        owner: userId,
+        products: [],
+        totalPrice: 0,
+        totalQuantity: 0,
+      });
+    }
+
+    // Process each incoming item
+    for (const item of items) {
+      const dbProduct = productsFromDB.find(
+        (p) => p._id.toString() === item.productId
+      );
+
+      const existingProduct = cart.products.find(
+        (p) => p.product.toString() === item.productId
+      );
+
+      if (existingProduct) {
+        existingProduct.quantity += item.quantity;
+      } else {
+        cart.products.push({
+          product: item.productId,
+          quantity: item.quantity,
+        });
+      }
+
+      // Update totals
+      cart.totalPrice += dbProduct.price * item.quantity;
+      cart.totalQuantity += item.quantity;
+    }
+
+    await cart.save();
+    await cart.populate("products.product");
+
+    return res.status(200).json({
+      success: true,
+      data: cart,
+      message: "Products added to cart successfully",
+    });
+  } catch (error) {
+    console.error("Error in addMultipleProductsToCart:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // NEW: Increment/Decrement quantity function
 export const adjustProductQuantity = async (req, res) => {
   try {
