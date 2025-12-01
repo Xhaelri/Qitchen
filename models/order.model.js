@@ -37,6 +37,11 @@ const orderSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    paymentMethod: {
+      type: String,
+      enum: ["Card", "COD"],
+      default: "Card",
+    },
     paymentStatus: {
       type: String,
       enum: ["Pending", "Completed", "Failed", "Cancelled"],
@@ -52,8 +57,20 @@ const orderSchema = new mongoose.Schema(
       ref: "Address",
       required: true,
     },
+    placeType: {
+      type: String,
+      enum: ["Online", "In-Place", "Takeaway"],
+      default: "Online",
+    },
+    table: {
+      type: Schema.Types.ObjectId,
+      ref: "Table",
+      required: false,
+    },
     stripeSessionID: {
       type: String,
+      unique: true,
+      sparse: true,
     },
     orderStatus: {
       type: String,

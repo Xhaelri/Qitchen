@@ -16,6 +16,12 @@ const userSchema = new mongoose.Schema(
           "Username must be at least 8 characters long and can only contain letters, spaces, underscores (_), and hyphens (-).",
       },
     },
+        addresses: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Address",
+      },
+    ],
     email: {
       type: String,
       required: true,

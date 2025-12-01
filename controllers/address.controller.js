@@ -1,4 +1,5 @@
 import Address from "../models/address.model.js";
+import User from "../models/user.model.js";
 
 export const addAddress = async (req, res) => {
   try {
@@ -41,6 +42,13 @@ export const addAddress = async (req, res) => {
       flatNumber,
       position,
     });
+    
+       await User.findByIdAndUpdate(
+      userId,
+      { $push: { addresses: address._id } },
+      { new: true }
+    );
+
 
     return res.status(201).json({
       success: true,

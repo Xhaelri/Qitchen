@@ -14,6 +14,11 @@ const reservationSchema = new mongoose.Schema(
       enum: ["Pending", "Confirmed", "Cancelled"],
       default: "Pending",
     },
+    orderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Order",
+      required: false,
+    },
   },
   { timestamps: true }
 );

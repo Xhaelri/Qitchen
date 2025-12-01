@@ -339,8 +339,21 @@ export const resetPassword = async (req, res) => {
 
 export const getCurrentUser = async (req, res) => {
   try {
-    const userId = req.user.id;
-    const user = await User.findById(userId).select("-password -refreshToken -verifyOtp -resetOtp");
+    const userId = req.user._id;
+    const user = await User.findById(userId)
+      .select(
+        "-password -refreshToken -verifyOtp -resetOtp"
+      )
+      .populate({
+        path: "addresses",
+        select: "-__v", // include all fields except __v
+      });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
     return res.status(200).json({ success: true, user });
   } catch (error) {
     console.log("Error in Auth function", error);

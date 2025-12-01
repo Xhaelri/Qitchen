@@ -1,39 +1,14 @@
 import Reservation from "../models/reservation.model.js";
 import Table from "../models/table.model.js";
-
-const VALID_SLOTS = ["16:00", "18:00", "20:00", "22:00"];
-
-// Helper function to create local date without timezone conversion
-function createLocalDate(dateString, timeString = "00:00:00") {
-  const [year, month, day] = dateString.split("-");
-  const [hours, minutes, seconds = "00"] = timeString.split(":");
-  return new Date(year, month - 1, day, hours, minutes, seconds);
-}
-
-// Helper function to get start and end of day in local time
-function getLocalDayRange(dateString) {
-  const startOfDay = createLocalDate(dateString, "00:00:00");
-  const endOfDay = createLocalDate(dateString, "23:59:59");
-  endOfDay.setMilliseconds(999);
-  return { startOfDay, endOfDay };
-}
-
-function generateSlots(date, interval = 120) {
-  const slots = [];
-  let start = createLocalDate(date, "16:00:00");
-  let end = createLocalDate(date, "24:00:00");
-
-  let current = new Date(start);
-  while (current < end) {
-    slots.push(new Date(current));
-    current = new Date(current.getTime() + interval * 60 * 1000);
-  }
-  return slots;
-}
-
-function isValidSlot(slot) {
-  return VALID_SLOTS.includes(slot);
-}
+import {
+  VALID_SLOTS,
+  createLocalDate,
+  getLocalDayRange,
+  generateSlots,
+  isValidSlot,
+  validateSlotAndDate,
+  getTodayDate,
+} from "../helpers/reservation.helpers.js";
 
 export const getAllSlotsForAllTables = async (req, res) => {
   try {
@@ -53,7 +28,7 @@ export const getAllSlotsForAllTables = async (req, res) => {
         $gte: startOfDay,
         $lte: endOfDay,
       },
-      status: { $in: ["pending", "confirmed"] },
+      status: { $in: ["Pending", "Confirmed"] },
     }).populate("table");
 
     const currentReservationsMap = {};
@@ -115,12 +90,12 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    if (!isValidSlot(slot)) {
-      return res.status(400).json({
+    // Validate slot and date
+    const validation = validateSlotAndDate(slot, date);
+    if (!validation.success) {
+      return res.status(validation.statusCode).json({
         success: false,
-        message: `Invalid slot time. Available slots are: ${VALID_SLOTS.join(
-          ", "
-        )}`,
+        message: validation.message,
       });
     }
 
@@ -132,20 +107,12 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    const reservationDate = createLocalDate(date, `${slot}:00`);
-
-    const now = new Date();
-    if (reservationDate < now) {
-      return res.status(400).json({
-        success: false,
-        message: "Cannot create reservation for a past date and time",
-      });
-    }
+    const reservationDate = validation.reservationDate;
 
     const existing = await Reservation.findOne({
       table: table._id,
       reservationDate: reservationDate,
-      status: { $in: ["pending", "confirmed"] },
+      status: { $in: ["Pending", "Confirmed"] },
     });
 
     if (existing) {
@@ -224,33 +191,23 @@ export const updateReservation = async (req, res) => {
     }
 
     if (date && slot) {
-      if (!isValidSlot(slot)) {
-        return res.status(400).json({
+      // Validate slot and date
+      const validation = validateSlotAndDate(slot, date);
+      if (!validation.success) {
+        return res.status(validation.statusCode).json({
           success: false,
-          message: `Invalid slot time. Available slots are: ${VALID_SLOTS.join(
-            ", "
-          )}`,
+          message: validation.message,
         });
       }
 
-      const newReservationDate = createLocalDate(date, `${slot}:00`);
-
-      const now = new Date();
-      if (newReservationDate < now) {
-        return res.status(400).json({
-          success: false,
-          message: "Cannot update reservation to a past date and time",
-        });
-      }
-
-      updates.reservationDate = newReservationDate;
+      updates.reservationDate = validation.reservationDate;
     }
 
     if (status) {
       if (!["Pending", "Confirmed", "Cancelled"].includes(status)) {
         return res.status(400).json({
           success: false,
-          message: "Invalid status. Must be pending, confirmed, or cancelled",
+          message: "Invalid status. Must be Pending, Confirmed, or Cancelled",
         });
       }
       updates.status = status;
@@ -261,7 +218,7 @@ export const updateReservation = async (req, res) => {
         _id: { $ne: reservationId },
         table: updates.table || reservation.table,
         reservationDate: updates.reservationDate || reservation.reservationDate,
-        status: { $in: ["Pending", "Confirmed", "Cancelled"] },
+        status: { $in: ["Pending", "Confirmed"] },
       });
 
       if (conflictCheck) {
@@ -295,7 +252,6 @@ export const updateReservation = async (req, res) => {
   }
 };
 
-
 export const getAllReservationsByDay = async (req, res) => {
   try {
     const { date } = req.params;
@@ -320,13 +276,11 @@ export const getAllReservationsByDay = async (req, res) => {
     ]);
 
     if (!reservations || reservations.length === 0) {
-      return res
-        .status(200)
-        .json({
-          success: true,
-          data: reservations,
-          message: "No reservations for this date!",
-        });
+      return res.status(200).json({
+        success: true,
+        data: reservations,
+        message: "No reservations for this date!",
+      });
     }
 
     return res.status(200).json({
@@ -345,16 +299,7 @@ export const getAllReservationsByDay = async (req, res) => {
 
 export const getAllReservationsForTodayAllTables = async (req, res) => {
   try {
-    const now = new Date();
-
-    // Get today's date in YYYY-MM-DD format in local time
-    const today =
-      now.getFullYear() +
-      "-" +
-      String(now.getMonth() + 1).padStart(2, "0") +
-      "-" +
-      String(now.getDate()).padStart(2, "0");
-
+    const today = getTodayDate();
     const { startOfDay, endOfDay } = getLocalDayRange(today);
 
     const allTables = await Table.find();
@@ -368,12 +313,6 @@ export const getAllReservationsForTodayAllTables = async (req, res) => {
       .select("-__v")
       .populate([{ path: "user", select: "-refreshToken -password -__v" }]);
 
-    if (!reservations || reservations.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No reservations for today!",
-      });
-    }
     const tablesWithReservations = allTables.map((table) => {
       const tableReservations = reservations.filter(
         (reservation) =>
@@ -385,9 +324,10 @@ export const getAllReservationsForTodayAllTables = async (req, res) => {
         tableNumber: table.number,
         capacity: table.capacity,
         isActive: table.isActive,
-        reservations: tableReservations,
+        reservations: tableReservations, // will be empty if no reservations
       };
     });
+
     return res.status(200).json({
       success: true,
       data: tablesWithReservations,
