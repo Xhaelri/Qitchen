@@ -1,4 +1,4 @@
-import PaymentMethod from "../models/paymentMethod.model";
+import PaymentMethod from "../models/paymentMethod.model.js";
 
 // Helper function for validation (used in order controller)
 export const validatePaymentMethod = async (paymentMethodName) => {
