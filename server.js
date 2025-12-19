@@ -18,7 +18,7 @@ import { router as reservationRouter } from "./routes/reservation.route.js";
 import { router as srtipeRouter } from "./routes/stripe.route.js";
 import { router as homeRouter } from "./routes/home.route.js";
 import { router as adminRouter } from "./routes/admin.route.js";
-import { router as deliveryRouter } from "./routes/delivery.route.js";
+
 const app = express();
 
 // stripe webhook route
@@ -43,7 +43,7 @@ app.use("/api/v1/table", tableRouter);
 app.use("/api/v1/reservation", reservationRouter);
 app.use("/api/v1/home", homeRouter);
 app.use("/api/v1/admin", adminRouter);
-app.use("/api/v1/delivery", deliveryRouter);
+
 
 app.use(notFound);
 app.use(errorHandler);
