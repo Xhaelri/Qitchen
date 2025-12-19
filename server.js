@@ -4,7 +4,6 @@ import { errorHandler, notFound } from "./middleware/errorHandler.middlware.js";
 
 import cookieParser from "cookie-parser";
 import express from "express";
-import cors from "cors";
 import connectDB from "./db/db.js";
 import "dotenv/config";
 import { router as userRouter } from "./routes/user.route.js";
@@ -19,6 +18,7 @@ import { router as reservationRouter } from "./routes/reservation.route.js";
 import { router as srtipeRouter } from "./routes/stripe.route.js";
 import { router as homeRouter } from "./routes/home.route.js";
 import { router as adminRouter } from "./routes/admin.route.js";
+import { router as deliveryRouter } from "./routes/delivery.route.js";
 const app = express();
 
 // stripe webhook route
@@ -29,7 +29,7 @@ app.use(cookieParser());
 applySecurity(app);
 
 app.get("/", (req, res) => {
-  res.send("API is working");
+  res.send("Qitchen API is working!");
 });
 
 app.use("/api/v1/user", userRouter);
@@ -43,7 +43,7 @@ app.use("/api/v1/table", tableRouter);
 app.use("/api/v1/reservation", reservationRouter);
 app.use("/api/v1/home", homeRouter);
 app.use("/api/v1/admin", adminRouter);
-
+app.use("/api/v1/delivery", deliveryRouter);
 
 app.use(notFound);
 app.use(errorHandler);
